@@ -56,3 +56,11 @@ A simple web application to visualize TUF (The Update Framework) metadata. The f
 ## Usage  
 - Open `http://localhost:3000` in your browser.  
 - Click on any file name to expand and view its JSON content.  
+
+
+
+
+![image](https://github.com/user-attachments/assets/cdc8897f-45ed-4328-9aa7-b361322c96b6)
+
+![image](https://github.com/user-attachments/assets/6cd16a34-24d3-4b3f-892c-40624fac89cf)
+
