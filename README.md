@@ -60,7 +60,7 @@ A simple web application to visualize TUF (The Update Framework) metadata. The f
 
 
 
-![image](https://github.com/user-attachments/assets/cdc8897f-45ed-4328-9aa7-b361322c96b6)
+![image](https://github.com/user-attachments/assets/accf63a5-4fdf-4cc4-b713-c185fcbac4d0)
 
 ![image](https://github.com/user-attachments/assets/6cd16a34-24d3-4b3f-892c-40624fac89cf)
 
