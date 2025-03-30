@@ -59,4 +59,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - The Update Framework team for creating the TUF specification
 - The tuf-js team for the JavaScript implementation
-
