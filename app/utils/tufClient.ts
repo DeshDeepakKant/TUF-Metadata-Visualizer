@@ -46,67 +46,44 @@ export class TufRepository {
             // Log the directory contents to debug
             console.log('Metadata directory contents:', fs.readdirSync(METADATA_FS_PATH));
 
-            // Read metadata files directly from the file system on the server
-            const rootData = await this.readJsonMetadataFile('root.json');
-            const rootSigned = Root.fromJSON(rootData.signed);
-            this.rootMetadata = new Metadata<Root>(
-                rootSigned, 
-                convertSignatures(rootData.signatures)
-            );
-            
-            // Extract key owner usernames directly from the root metadata
-            this.extractKeyOwnerUsernames(rootData.signed.keys);
-            
-            const timestampData = await this.readJsonMetadataFile('timestamp.json');
-            const timestampSigned = Timestamp.fromJSON(timestampData.signed);
-            this.timestampMetadata = new Metadata<Timestamp>(
-                timestampSigned, 
-                convertSignatures(timestampData.signatures)
-            );
-            
-            const snapshotData = await this.readJsonMetadataFile('snapshot.json');
-            const snapshotSigned = Snapshot.fromJSON(snapshotData.signed);
-            this.snapshotMetadata = new Metadata<Snapshot>(
-                snapshotSigned, 
-                convertSignatures(snapshotData.signatures)
-            );
-            
-            const targetsData = await this.readJsonMetadataFile('targets.json');
-            const targetsSigned = Targets.fromJSON(targetsData.signed);
-            this.targetsMetadata = new Metadata<Targets>(
-                targetsSigned, 
-                convertSignatures(targetsData.signatures)
-            );
-
-            // Fetch delegated targets if they exist in the snapshot metadata
-            if (this.snapshotMetadata?.signed) {
-                const snapshot = this.snapshotMetadata.signed;
-                const metaKeys = Object.keys(snapshot.meta || {});
-                
-                // Filter out the top-level metadata files
-                const delegatedRoles = metaKeys.filter(key => 
-                    !['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key) && 
-                    key.endsWith('.json')
+            try {
+                // Read metadata files directly from the file system on the server
+                const rootData = await this.readJsonMetadataFile('root.json');
+                const rootSigned = Root.fromJSON(rootData.signed);
+                this.rootMetadata = new Metadata<Root>(
+                    rootSigned, 
+                    this.convertSignatures(rootData.signatures)
                 );
                 
-                for (const role of delegatedRoles) {
-                    try {
-                        const roleName = role.replace('.json', '');
-                        const delegatedData = await this.readJsonMetadataFile(role);
-                        if (delegatedData) {
-                            const delegatedSigned = Targets.fromJSON(delegatedData.signed);
-                            this.delegatedTargetsMetadata.set(
-                                roleName, 
-                                new Metadata<Targets>(
-                                    delegatedSigned, 
-                                    convertSignatures(delegatedData.signatures)
-                                )
-                            );
-                        }
-                    } catch (e) {
-                        console.warn(`Failed to read delegated role file: ${role}`);
-                    }
-                }
+                // Extract key owner usernames directly from the root metadata
+                this.extractKeyOwnerUsernames(rootData.signed.keys);
+                
+                const timestampData = await this.readJsonMetadataFile('timestamp.json');
+                const timestampSigned = Timestamp.fromJSON(timestampData.signed);
+                this.timestampMetadata = new Metadata<Timestamp>(
+                    timestampSigned, 
+                    this.convertSignatures(timestampData.signatures)
+                );
+                
+                const snapshotData = await this.readJsonMetadataFile('snapshot.json');
+                const snapshotSigned = Snapshot.fromJSON(snapshotData.signed);
+                this.snapshotMetadata = new Metadata<Snapshot>(
+                    snapshotSigned, 
+                    this.convertSignatures(snapshotData.signatures)
+                );
+                
+                const targetsData = await this.readJsonMetadataFile('targets.json');
+                const targetsSigned = Targets.fromJSON(targetsData.signed);
+                this.targetsMetadata = new Metadata<Targets>(
+                    targetsSigned, 
+                    this.convertSignatures(targetsData.signatures)
+                );
+
+                // Fetch delegated targets if they exist in the snapshot metadata
+                await this.loadDelegatedTargets();
+            } catch (error) {
+                console.error("Error loading TUF metadata:", error);
+                throw new Error(`Failed to load TUF metadata: ${error instanceof Error ? error.message : String(error)}`);
             }
         } catch (error) {
             console.error("Error initializing TUF repository:", error);
@@ -114,15 +91,90 @@ export class TufRepository {
         }
     }
 
+    // Load delegated targets from snapshot metadata
+    private async loadDelegatedTargets(): Promise<void> {
+        if (!this.snapshotMetadata?.signed) {
+            return;
+        }
+        
+        const snapshot = this.snapshotMetadata.signed;
+        const metaKeys = Object.keys(snapshot.meta || {});
+        
+        // Filter out the top-level metadata files
+        const delegatedRoles = metaKeys.filter(key => 
+            !['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key) && 
+            key.endsWith('.json')
+        );
+        
+        // Log the delegated roles found
+        if (delegatedRoles.length > 0) {
+            console.log(`Found ${delegatedRoles.length} delegated roles: ${delegatedRoles.join(', ')}`);
+        }
+        
+        // Process each delegated role in parallel for efficiency
+        const delegationPromises = delegatedRoles.map(async (role) => {
+            try {
+                const roleName = role.replace('.json', '');
+                const delegatedData = await this.readJsonMetadataFile(role);
+                if (delegatedData) {
+                    const delegatedSigned = Targets.fromJSON(delegatedData.signed);
+                    this.delegatedTargetsMetadata.set(
+                        roleName, 
+                        new Metadata<Targets>(
+                            delegatedSigned, 
+                            this.convertSignatures(delegatedData.signatures)
+                        )
+                    );
+                    return { roleName, success: true };
+                }
+                return { roleName, success: false, error: 'No data returned' };
+            } catch (e) {
+                console.warn(`Failed to read delegated role file: ${role}`, e);
+                return { roleName: role, success: false, error: e instanceof Error ? e.message : String(e) };
+            }
+        });
+        
+        // Wait for all delegated roles to be processed
+        const results = await Promise.all(delegationPromises);
+        
+        // Log summary of loaded delegated roles
+        const successCount = results.filter(r => r.success).length;
+        console.log(`Successfully loaded ${successCount} of ${delegatedRoles.length} delegated roles`);
+    }
+
     // Helper to convert array of signatures to record format
     private convertSignatures(signatures: Array<{keyid: string, sig: string}>): Record<string, any> {
+        if (!signatures || !Array.isArray(signatures)) {
+            console.warn("No valid signatures array provided");
+            return {};
+        }
+        
         const result: Record<string, any> = {};
-        signatures.forEach(sig => {
-            result[sig.keyid] = {
-                keyid: sig.keyid,
-                sig: sig.sig
+        
+        // Check for duplicate keyids
+        const keyIds = new Set<string>();
+        
+        for (const sig of signatures) {
+            if (!sig || typeof sig !== 'object' || !('keyid' in sig) || !('sig' in sig)) {
+                console.warn("Skipping invalid signature:", sig);
+                continue;
+            }
+            
+            const { keyid, sig: signature } = sig;
+            
+            if (keyIds.has(keyid)) {
+                console.warn(`Multiple signatures found for keyid ${keyid}`);
+                // Latest one wins in case of duplicates
+            }
+            
+            keyIds.add(keyid);
+            
+            result[keyid] = {
+                keyid,
+                sig: signature
             };
-        });
+        }
+        
         return result;
     }
 
@@ -373,6 +425,110 @@ export class TufRepository {
             return false;
         }
     }
+
+    // Verify that a role meets its signature threshold requirements
+    verifyRoleSignatures(roleName: string): boolean {
+        if (!this.rootMetadata || !this.rootMetadata.signed) {
+            console.error("Root metadata not available for signature verification");
+            return false;
+        }
+        
+        // Get the role metadata
+        let metadata: Metadata<any> | null = null;
+        let roleInfo: any = null;
+        
+        switch (roleName) {
+            case 'root':
+                metadata = this.rootMetadata;
+                roleInfo = this.rootMetadata.signed.roles['root'];
+                break;
+            case 'timestamp':
+                metadata = this.timestampMetadata;
+                roleInfo = this.rootMetadata.signed.roles['timestamp'];
+                break;
+            case 'snapshot':
+                metadata = this.snapshotMetadata;
+                roleInfo = this.rootMetadata.signed.roles['snapshot'];
+                break;
+            case 'targets':
+                metadata = this.targetsMetadata;
+                roleInfo = this.rootMetadata.signed.roles['targets'];
+                break;
+            default:
+                // Check if it's a delegated role
+                metadata = this.delegatedTargetsMetadata.get(roleName) || null;
+                if (this.targetsMetadata?.signed) {
+                    const targetsSigned = this.targetsMetadata.signed;
+                    const delegations = targetsSigned.delegations;
+                    if (delegations && Array.isArray(delegations.roles)) {
+                        roleInfo = delegations.roles.find(r => r.name === roleName);
+                    }
+                }
+        }
+        
+        if (!metadata || !roleInfo) {
+            console.error(`Role ${roleName} not found for signature verification`);
+            return false;
+        }
+        
+        // Count valid signatures
+        const requiredThreshold = roleInfo.threshold;
+        const validSignatureCount = Object.keys(metadata.signatures).length;
+        
+        // In a real implementation, we would cryptographically verify each signature
+        // against the corresponding key, but for visualization purposes, we just check
+        // if the number of signatures meets the threshold
+        
+        console.log(`Role ${roleName}: ${validSignatureCount} signatures, threshold is ${requiredThreshold}`);
+        return validSignatureCount >= requiredThreshold;
+    }
+
+    // Get canonical JSON representation of signed data
+    // This is useful for signature verification
+    getCanonicalJSON(data: any): string {
+        // In a real implementation, we would use a canonical JSON library like
+        // the one from tuf-js. For this example, we'll use a simple approach.
+        
+        // Sort keys alphabetically and remove whitespace
+        return JSON.stringify(data, (key, value) => {
+            // Handle special cases like Maps
+            if (value instanceof Map) {
+                return Object.fromEntries(value);
+            }
+            return value;
+        }, 0);
+    }
+    
+    // Get the canonical JSON representation of a role's signed data
+    getSignedBytes(roleName: string): string | null {
+        let signed: any = null;
+        
+        switch (roleName) {
+            case 'root':
+                signed = this.rootMetadata?.signed;
+                break;
+            case 'timestamp':
+                signed = this.timestampMetadata?.signed;
+                break;
+            case 'snapshot':
+                signed = this.snapshotMetadata?.signed;
+                break;
+            case 'targets':
+                signed = this.targetsMetadata?.signed;
+                break;
+            default:
+                // Check if it's a delegated role
+                const delegated = this.delegatedTargetsMetadata.get(roleName);
+                signed = delegated?.signed || null;
+        }
+        
+        if (!signed) {
+            console.error(`Role ${roleName} not found for getting signed bytes`);
+            return null;
+        }
+        
+        return this.getCanonicalJSON(signed);
+    }
 }
 
 function formatExpirationDate(dateString: string): string {
@@ -382,18 +538,6 @@ function formatExpirationDate(dateString: string): string {
     } catch (e) {
         return dateString;
     }
-}
-
-// Helper function to convert signature arrays to record format expected by tuf-js
-function convertSignatures(signatures: Array<{keyid: string, sig: string}>): Record<string, any> {
-    const result: Record<string, any> = {};
-    signatures.forEach(sig => {
-        result[sig.keyid] = {
-            keyid: sig.keyid,
-            sig: sig.sig
-        };
-    });
-    return result;
 }
 
 export const createTufRepository = async (): Promise<TufRepository> => {

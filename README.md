@@ -11,9 +11,16 @@ This repository contains a web application to visualize TUF (The Update Framewor
 - View thresholds and signing requirements
 - Direct links to JSON metadata files
 
+## Implementation Details
+
+This application uses:
+
+- **TUF-JS Models**: We use the built-in models from `tuf-js` to parse and handle TUF metadata. This ensures correctness with the TUF specification and keeps our codebase smaller and more maintainable.
+- **Real-life Metadata**: We use real-world metadata from the Sigstore TUF repository that demonstrates thresholds > 1 and multiple allowed signers per role.
+
 ## Sample Metadata
 
-This application includes sample metadata from the Sigstore TUF repository. The metadata files were sourced from:
+The metadata files were sourced from:
 
 - [12.root.json](https://tuf-repo-cdn.sigstore.dev/12.root.json)
 - [timestamp.json](https://tuf-repo-cdn.sigstore.dev/timestamp.json)
@@ -25,8 +32,6 @@ The metadata includes additional delegated targets for:
 - rekor
 - revocation
 - staging
-
-These real-world metadata files demonstrate thresholds > 1 and multiple allowed signers per role.
 
 ## Getting Started
 
