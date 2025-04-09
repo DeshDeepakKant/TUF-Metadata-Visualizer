@@ -22,13 +22,6 @@ export class TufRepository {
     private targetsMetadata: Metadata<Targets> | null = null;
     private delegatedTargetsMetadata: Map<string, Metadata<Targets>> = new Map();
     private tufClient: any | null = null;
-    
-    // Store the mapping of key IDs to display names
-    private keyidToDisplayName: Record<string, string> = {
-        // Default fallback values if not found in metadata
-        "0c87432c": "online key",
-        "5e3a4021": "online key"
-    };
 
     constructor(baseUrl: string = METADATA_BASE_URL) {
         // We'll just use direct file access instead of fetch
@@ -54,9 +47,6 @@ export class TufRepository {
                     rootSigned, 
                     this.convertSignatures(rootData.signatures)
                 );
-                
-                // Extract key owner usernames directly from the root metadata
-                this.extractKeyOwnerUsernames(rootData.signed.keys);
                 
                 const timestampData = await this.readJsonMetadataFile('timestamp.json');
                 const timestampSigned = Timestamp.fromJSON(timestampData.signed);
@@ -100,19 +90,32 @@ export class TufRepository {
         const snapshot = this.snapshotMetadata.signed;
         const metaKeys = Object.keys(snapshot.meta || {});
         
-        // Filter out the top-level metadata files
-        const delegatedRoles = metaKeys.filter(key => 
-            !['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key) && 
-            key.endsWith('.json')
-        );
+        // Get list of actual files in the metadata directory
+        const existingFiles = fs.readdirSync(METADATA_FS_PATH);
         
-        // Log the delegated roles found
+        // Filter for delegated roles that actually exist
+        const delegatedRoles = metaKeys.filter(key => {
+            // Skip top-level metadata files
+            if (['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key)) {
+                return false;
+            }
+            
+            // Must be a JSON file
+            if (!key.endsWith('.json')) {
+                return false;
+            }
+            
+            // Must exist in the filesystem
+            return existingFiles.includes(key);
+        });
+        
+        // Only log if we found delegated roles
         if (delegatedRoles.length > 0) {
-            console.log(`Found ${delegatedRoles.length} delegated roles: ${delegatedRoles.join(', ')}`);
+            console.log(`Processing ${delegatedRoles.length} delegated role(s): ${delegatedRoles.join(', ')}`);
         }
         
-        // Process each delegated role in parallel for efficiency
-        const delegationPromises = delegatedRoles.map(async (role) => {
+        // Process each existing delegated role
+        for (const role of delegatedRoles) {
             try {
                 const roleName = role.replace('.json', '');
                 const delegatedData = await this.readJsonMetadataFile(role);
@@ -125,21 +128,18 @@ export class TufRepository {
                             this.convertSignatures(delegatedData.signatures)
                         )
                     );
-                    return { roleName, success: true };
                 }
-                return { roleName, success: false, error: 'No data returned' };
             } catch (e) {
-                console.warn(`Failed to read delegated role file: ${role}`, e);
-                return { roleName: role, success: false, error: e instanceof Error ? e.message : String(e) };
+                // Log error but continue processing other roles
+                console.error(`Error processing delegated role ${role}:`, e);
             }
-        });
+        }
         
-        // Wait for all delegated roles to be processed
-        const results = await Promise.all(delegationPromises);
-        
-        // Log summary of loaded delegated roles
-        const successCount = results.filter(r => r.success).length;
-        console.log(`Successfully loaded ${successCount} of ${delegatedRoles.length} delegated roles`);
+        // Log final summary
+        const loadedRoles = Array.from(this.delegatedTargetsMetadata.keys());
+        if (loadedRoles.length > 0) {
+            console.log(`Successfully loaded delegated role(s): ${loadedRoles.join(', ')}`);
+        }
     }
 
     // Helper to convert array of signatures to record format
@@ -210,41 +210,6 @@ export class TufRepository {
         }
     }
 
-    // Extract key owner usernames from the root metadata
-    private extractKeyOwnerUsernames(keys: Record<string, any>): void {
-        if (!keys) return;
-        
-        Object.entries(keys).forEach(([keyId, keyInfo]) => {
-            // Check if the key has the x-tuf-on-ci-keyowner field
-            if (keyInfo && 
-                typeof keyInfo === 'object' && 
-                'x-tuf-on-ci-keyowner' in keyInfo && 
-                typeof keyInfo['x-tuf-on-ci-keyowner'] === 'string') {
-                
-                // Store the username (ensure it starts with @)
-                let username = keyInfo['x-tuf-on-ci-keyowner'];
-                if (!username.startsWith('@')) {
-                    username = '@' + username;
-                }
-                
-                // Store the full key ID and also the short version (first 8 chars)
-                this.keyidToDisplayName[keyId] = username;
-                this.keyidToDisplayName[keyId.substring(0, 8)] = username;
-            }
-            
-            // Check if it's an online key
-            if (keyInfo && 
-                typeof keyInfo === 'object' && 
-                'x-tuf-on-ci-online-uri' in keyInfo && 
-                typeof keyInfo['x-tuf-on-ci-online-uri'] === 'string') {
-                
-                // Store as online key
-                this.keyidToDisplayName[keyId] = "online key";
-                this.keyidToDisplayName[keyId.substring(0, 8)] = "online key";
-            }
-        });
-    }
-
     getRoleInfo(): RoleInfo[] {
         if (!this.rootMetadata) {
             return [];
@@ -253,26 +218,9 @@ export class TufRepository {
         const roles: RoleInfo[] = [];
         const root = this.rootMetadata.signed;
         
-        // Function to transform keyids to user-friendly display names if available
+        // Function to transform keyids to truncated format
         const transformKeyIds = (keyids: string[]): string[] => {
-            return keyids.map(keyid => {
-                // If we have a friendly name for this keyid, use it
-                if (this.keyidToDisplayName[keyid]) {
-                    return this.keyidToDisplayName[keyid];
-                }
-                
-                // Try with just the first 8 chars (short key ID)
-                if (keyid.length > 8 && this.keyidToDisplayName[keyid.substring(0, 8)]) {
-                    return this.keyidToDisplayName[keyid.substring(0, 8)];
-                }
-                
-                // For online keys, mark them accordingly
-                if (keyid.toLowerCase().includes('online')) {
-                    return 'online key';
-                }
-                
-                return keyid;
-            });
+            return keyids.map(keyid => keyid.substring(0, 8));
         };
 
         // Root role
@@ -341,57 +289,25 @@ export class TufRepository {
             }
         }
 
-        // Delegated targets roles - We'll handle this differently
-        // Since the tuf-js model structure might be different from our metadata files
-        // we'll use more generic approach that should work with both formats
-        this.delegatedTargetsMetadata.forEach((metadata, roleName) => {
-            if (this.targetsMetadata?.signed) {
-                // Use raw JSON data instead of tuf-js models for delegations
-                // because the structure may vary between TUF versions
-                const rawData = this.targetsMetadata.signed.toJSON();
-                // Make sure delegations and delegations.roles exist and are objects
-                if (rawData && 
-                    typeof rawData === 'object' && 
-                    'delegations' in rawData && 
-                    rawData.delegations && 
-                    typeof rawData.delegations === 'object' &&
-                    'roles' in rawData.delegations) {
-                    
-                    const delegatedRoles = rawData.delegations.roles;
-                    if (Array.isArray(delegatedRoles)) {
-                        const delegationInfo = delegatedRoles.find((r: any) => r.name === roleName);
-                        if (delegationInfo && 
-                            typeof delegationInfo === 'object' &&
-                            'threshold' in delegationInfo &&
-                            typeof delegationInfo.threshold === 'number') {
-                            
-                            // Extract keyids safely, ensuring they exist and are an array
-                            let keyids: string[] = [];
-                            if ('keyids' in delegationInfo && Array.isArray(delegationInfo.keyids)) {
-                                // Filter and map to ensure we only have strings
-                                keyids = delegationInfo.keyids
-                                    .filter(item => typeof item === 'string')
-                                    .map(item => String(item));
-                                
-                                // Apply the transformation to get user-friendly names
-                                keyids = transformKeyIds(keyids);
-                            }
-                            
-                            roles.push({
-                                role: roleName,
-                                expires: formatExpirationDate(metadata.signed.expires),
-                                signers: {
-                                    required: delegationInfo.threshold,
-                                    total: keyids.length,
-                                    keyids: keyids
-                                },
-                                jsonLink: `${METADATA_BASE_URL}/${roleName}.json`
-                            });
-                        }
-                    }
+        // Delegated targets roles
+        const delegations = this.targetsMetadata?.signed.delegations;
+        if (delegations?.roles) {
+            for (const role of Object.values(delegations.roles)) {
+                const delegatedData = this.delegatedTargetsMetadata.get(role.name);
+                if (delegatedData) {
+                    roles.push({
+                        role: role.name,
+                        expires: formatExpirationDate(delegatedData.signed.expires),
+                        signers: {
+                            required: role.threshold,
+                            total: role.keyIDs.length,
+                            keyids: transformKeyIds(role.keyIDs)
+                        },
+                        jsonLink: `${METADATA_BASE_URL}/${role.name}.json`
+                    });
                 }
             }
-        });
+        }
 
         return roles;
     }
@@ -408,79 +324,6 @@ export class TufRepository {
         });
         
         return keysObj;
-    }
-
-    // Use TUF-JS for target verification
-    async verifyTarget(targetPath: string): Promise<boolean> {
-        try {
-            if (!this.targetsMetadata) {
-                return false;
-            }
-
-            // Get target from targets metadata
-            const targets = this.targetsMetadata.signed.targets;
-            return targets.hasOwnProperty(targetPath);
-        } catch (error) {
-            console.error(`Error verifying target ${targetPath}:`, error);
-            return false;
-        }
-    }
-
-    // Verify that a role meets its signature threshold requirements
-    verifyRoleSignatures(roleName: string): boolean {
-        if (!this.rootMetadata || !this.rootMetadata.signed) {
-            console.error("Root metadata not available for signature verification");
-            return false;
-        }
-        
-        // Get the role metadata
-        let metadata: Metadata<any> | null = null;
-        let roleInfo: any = null;
-        
-        switch (roleName) {
-            case 'root':
-                metadata = this.rootMetadata;
-                roleInfo = this.rootMetadata.signed.roles['root'];
-                break;
-            case 'timestamp':
-                metadata = this.timestampMetadata;
-                roleInfo = this.rootMetadata.signed.roles['timestamp'];
-                break;
-            case 'snapshot':
-                metadata = this.snapshotMetadata;
-                roleInfo = this.rootMetadata.signed.roles['snapshot'];
-                break;
-            case 'targets':
-                metadata = this.targetsMetadata;
-                roleInfo = this.rootMetadata.signed.roles['targets'];
-                break;
-            default:
-                // Check if it's a delegated role
-                metadata = this.delegatedTargetsMetadata.get(roleName) || null;
-                if (this.targetsMetadata?.signed) {
-                    const targetsSigned = this.targetsMetadata.signed;
-                    const delegations = targetsSigned.delegations;
-                    if (delegations && Array.isArray(delegations.roles)) {
-                        roleInfo = delegations.roles.find(r => r.name === roleName);
-                    }
-                }
-        }
-        
-        if (!metadata || !roleInfo) {
-            console.error(`Role ${roleName} not found for signature verification`);
-            return false;
-        }
-        
-        // Count valid signatures
-        const requiredThreshold = roleInfo.threshold;
-        const validSignatureCount = Object.keys(metadata.signatures).length;
-        
-        // In a real implementation, we would cryptographically verify each signature
-        // against the corresponding key, but for visualization purposes, we just check
-        // if the number of signatures meets the threshold
-        
-        console.log(`Role ${roleName}: ${validSignatureCount} signatures, threshold is ${requiredThreshold}`);
-        return validSignatureCount >= requiredThreshold;
     }
 
     // Get canonical JSON representation of signed data
@@ -534,7 +377,8 @@ export class TufRepository {
 function formatExpirationDate(dateString: string): string {
     try {
         const date = parseISO(dateString);
-        return format(date, "MMM d, yyyy HH:mm:ss 'UTC'");
+        // Remove seconds from format to avoid hydration mismatch
+        return format(date, "MMM d, yyyy HH:mm 'UTC'");
     } catch (e) {
         return dateString;
     }
