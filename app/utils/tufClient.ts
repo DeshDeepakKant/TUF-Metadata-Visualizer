@@ -1,6 +1,7 @@
 // This file is server-side only
 
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
+import { RoleInfo } from './types';
 import fs from 'fs';
 import path from 'path';
 import { format, parseISO } from 'date-fns';
@@ -10,19 +11,6 @@ const METADATA_BASE_URL = '/metadata';
 
 // For server-side file system access
 const METADATA_FS_PATH = path.join(process.cwd(), 'public', 'metadata');
-
-export interface RoleInfo {
-    role: string;
-    expires: string;
-    signers: {
-        required: number;
-        total: number;
-        keyids: string[];
-    };
-    jsonLink: string;
-    version?: number;
-    specVersion?: string;
-}
 
 export class TufRepository {
     private rootMetadata: Metadata<Root> | null = null;
