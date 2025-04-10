@@ -1,13 +1,10 @@
 // This file is server-side only
 
+import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 import { RoleInfo } from './types';
 import { parseISO, format } from 'date-fns';
 import * as path from 'path';
 import * as fs from 'fs';
-
-// Import directly from tuf-js and its models
-import * as tufJs from 'tuf-js';
-import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 
 // For client-side requests (via fetch)
 const METADATA_BASE_URL = '/metadata';
