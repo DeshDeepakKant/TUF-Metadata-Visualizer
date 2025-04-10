@@ -1,3 +1,12 @@
+/**
+ * Types for TUF metadata representation
+ * 
+ * Currently used interfaces:
+ * - RoleInfo: Used by TufRepository, RoleTable, and TufViewerClient
+ * 
+ * Other interfaces may be used indirectly or kept for reference to the TUF specification
+ */
+
 export interface TufKey {
     keyid_hash_algorithms: string[];
     keytype: string;
