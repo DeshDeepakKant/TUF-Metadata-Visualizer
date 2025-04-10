@@ -65,6 +65,9 @@ export default function RoleTable({ roles }: RoleTableProps) {
         return <div>No roles found.</div>;
     }
 
+    // Get spec_version from the first role (assuming it's the same for all)
+    const specVersion = roles[0]?.specVersion || '-';
+
     return (
         <TableContainer>
             <Table>
@@ -73,6 +76,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <TableHeader>Role</TableHeader>
                         <TableHeader>Signing Starts</TableHeader>
                         <TableHeader>Version</TableHeader>
+                        {/* <TableHeader>Spec Version</TableHeader> */}
                         <TableHeader>Expires</TableHeader>
                         <TableHeader>Signers</TableHeader>
                     </TableRow>
@@ -85,6 +89,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                             </TableCell>
                             <TableCell>{role.signingStarts || 'N/A'}</TableCell>
                             <TableCell>{role.version || '-'}</TableCell>
+                            {/* <TableCell>{role.specVersion || '-'}</TableCell> */}
                             <TableCell>{role.expires}</TableCell>
                             <TableCell>
                                 {role.signers.keyids.length > 0 ? (
