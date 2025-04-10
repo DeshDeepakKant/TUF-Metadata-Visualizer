@@ -100,4 +100,6 @@ export interface RoleInfo {
         keyids: string[];
     };
     jsonLink: string;
+    version?: number;
+    specVersion?: string;
 } 
