@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
+import { RoleInfo } from '../utils/types';
 
 interface TufViewerClientProps {
     roles: RoleInfo[];
