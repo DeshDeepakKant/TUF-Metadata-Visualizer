@@ -5,8 +5,7 @@ import { parseISO, format } from 'date-fns';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Import directly from tuf-js and its models
-import * as tufJs from 'tuf-js';
+// Import directly from tuf-js models
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 
 // For client-side requests (via fetch)
