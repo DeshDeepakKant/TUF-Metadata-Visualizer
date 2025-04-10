@@ -72,6 +72,8 @@ export default function RoleTable({ roles }: RoleTableProps) {
                     <TableRow>
                         <TableHeader>Role</TableHeader>
                         <TableHeader>Signing Starts</TableHeader>
+                        <TableHeader>Version</TableHeader>
+                        <TableHeader>Spec Version</TableHeader>
                         <TableHeader>Expires</TableHeader>
                         <TableHeader>Signers</TableHeader>
                     </TableRow>
@@ -83,6 +85,8 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                 {role.role} (<Link href={role.jsonLink} target="_blank">json</Link>)
                             </TableCell>
                             <TableCell>{role.signingStarts || 'N/A'}</TableCell>
+                            <TableCell>{role.version || '-'}</TableCell>
+                            <TableCell>{role.specVersion || '-'}</TableCell>
                             <TableCell>{role.expires}</TableCell>
                             <TableCell>
                                 {role.signers.keyids.length > 0 ? (
