@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
+import { RoleInfo } from '../utils/types';
 
 interface TufViewerClientProps {
     roles: RoleInfo[];
@@ -40,14 +41,21 @@ export default function TufViewerClient({ roles, version, error }: TufViewerClie
         );
     }
 
+    // Get spec_version from the first role (assuming it's the same for all)
+    const specVersion = roles[0]?.specVersion;
+
     return (
-        <main style={{ padding: '1rem' }}>
-            <h2>Repository State</h2>
+        <div className="space-y-4">
+            {specVersion && (
+                <div className="text-sm text-gray-600">
+                    TUF Specification Version: {specVersion}
+                </div>
+            )}
             <RoleTable roles={roles} />
             <RepoInfo
                 lastUpdated={new Date().toUTCString()}
                 toolVersion={version}
             />
-        </main>
+        </div>
     );
 } 
