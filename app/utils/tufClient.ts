@@ -220,6 +220,35 @@ export class TufRepository {
             return keyids.map(keyid => keyid.substring(0, 8));
         };
 
+        // Helper to convert TUF-js delegations to our format
+        const convertDelegations = (delegations: any) => {
+            if (!delegations) return undefined;
+            
+            const keys: Record<string, { keytype: string; keyval: { public: string }; scheme: string }> = {};
+            
+            // Convert keys to expected format
+            Object.entries(delegations.keys || {}).forEach(([keyId, keyValue]: [string, any]) => {
+                keys[keyId] = {
+                    keytype: keyValue.keytype || '',
+                    keyval: {
+                        public: keyValue.keyval?.public || ''
+                    },
+                    scheme: keyValue.scheme || ''
+                };
+            });
+            
+            // Convert roles to expected format
+            const roles = (delegations.roles || []).map((role: any) => ({
+                name: role.name || '',
+                keyids: role.keyIDs || [],
+                threshold: role.threshold || 0,
+                paths: role.paths || [],
+                terminating: role.terminating || false
+            }));
+            
+            return { keys, roles };
+        };
+
         // Root role
         const rootRole = root.roles['root'];
         if (rootRole) {
@@ -282,8 +311,7 @@ export class TufRepository {
             const targets = this.targetsMetadata.signed;
             const targetsRole = root.roles['targets'];
             if (targetsRole) {
-                // Create a simpler roleInfo object without the complex delegations transformation
-                const roleInfo: RoleInfo = {
+                roles.push({
                     role: 'targets',
                     expires: formatExpirationDate(targets.expires),
                     signers: {
@@ -294,52 +322,10 @@ export class TufRepository {
                     jsonLink: `${METADATA_BASE_URL}/targets.json`,
                     version: targets.version,
                     specVersion: targets.specVersion,
-                    // Add targets data directly
-                    targets: targets.targets || {}
-                };
-
-                // Add delegations if available, with a simpler approach
-                if (targets.delegations && typeof targets.delegations === 'object') {
-                    const delegations = targets.delegations;
-                    
-                    // Create simple objects that match our RoleInfo interface
-                    const delegatedRoles = Array.isArray(delegations.roles) ? 
-                        delegations.roles.map((role: any) => ({
-                            name: role.name || '',
-                            keyids: Array.isArray(role.keyIDs) ? role.keyIDs : [],
-                            threshold: typeof role.threshold === 'number' ? role.threshold : 1,
-                            paths: Array.isArray(role.paths) ? role.paths : undefined,
-                            terminating: typeof role.terminating === 'boolean' ? role.terminating : undefined
-                        })) : [];
-
-                    roleInfo.delegations = {
-                        // Create a simple key record that matches our interface
-                        keys: {},
-                        roles: delegatedRoles
-                    };
-
-                    // If keys are available, copy them with the right format
-                    if (delegations.keys && typeof delegations.keys === 'object') {
-                        const keys: Record<string, { keytype: string; keyval: { public: string }; scheme: string }> = {};
-                        
-                        Object.keys(delegations.keys).forEach(keyId => {
-                            const key = delegations.keys[keyId];
-                            if (key) {
-                                keys[keyId] = {
-                                    keytype: key.keyType || 'unknown',
-                                    keyval: {
-                                        public: key.keyVal?.public || ''
-                                    },
-                                    scheme: key.scheme || 'unknown'
-                                };
-                            }
-                        });
-                        
-                        roleInfo.delegations.keys = keys;
-                    }
-                }
-
-                roles.push(roleInfo);
+                    // Include targets data for nested display
+                    targets: targets.targets,
+                    delegations: convertDelegations(targets.delegations)
+                });
             }
         }
 
@@ -358,7 +344,10 @@ export class TufRepository {
                     },
                     jsonLink: `${METADATA_BASE_URL}/${roleName}.json`,
                     version: signed.version,
-                    specVersion: signed.specVersion
+                    specVersion: signed.specVersion,
+                    // Include targets data for nested display
+                    targets: signed.targets,
+                    delegations: convertDelegations(signed.delegations)
                 });
             }
         });
