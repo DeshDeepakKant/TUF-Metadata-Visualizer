@@ -29,9 +29,6 @@ The metadata files were sourced from:
 
 The metadata includes additional delegated targets for:
 - registry.npmjs.org
-- rekor
-- revocation
-- staging
 
 ## Getting Started
 
