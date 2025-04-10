@@ -76,9 +76,9 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <TableHeader>Role</TableHeader>
                         <TableHeader>Signing Starts</TableHeader>
                         <TableHeader>Version</TableHeader>
-                        {/* <TableHeader>Spec Version</TableHeader> */}
                         <TableHeader>Expires</TableHeader>
                         <TableHeader>Signers</TableHeader>
+                        <TableHeader>Targets Info</TableHeader>
                     </TableRow>
                 </thead>
                 <tbody>
@@ -89,7 +89,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
                             </TableCell>
                             <TableCell>{role.signingStarts || 'N/A'}</TableCell>
                             <TableCell>{role.version || '-'}</TableCell>
-                            {/* <TableCell>{role.specVersion || '-'}</TableCell> */}
                             <TableCell>{role.expires}</TableCell>
                             <TableCell>
                                 {role.signers.keyids.length > 0 ? (
@@ -126,6 +125,34 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                         <RequiredSigners>{role.signers.required}</RequiredSigners>
                                         <TotalSigners>of {role.signers.total}</TotalSigners>
                                     </SignerInfo>
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                {role.targets && (
+                                    <div className="text-sm">
+                                        <div className="font-semibold">Targets:</div>
+                                        <div className="ml-2">
+                                            {Object.keys(role.targets).length} files
+                                        </div>
+                                    </div>
+                                )}
+                                {role.delegations && (
+                                    <div className="text-sm mt-2">
+                                        <div className="font-semibold">Delegations:</div>
+                                        <div className="ml-2">
+                                            {role.delegations.roles.map(delegation => (
+                                                <div key={delegation.name} className="mb-1">
+                                                    <div>{delegation.name}</div>
+                                                    <div className="text-xs text-gray-600">
+                                                        {delegation.paths?.length ? 
+                                                            `Paths: ${delegation.paths.join(', ')}` : 
+                                                            'No paths specified'}
+                                                        {delegation.terminating && ' (terminating)'}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 )}
                             </TableCell>
                         </TableRow>

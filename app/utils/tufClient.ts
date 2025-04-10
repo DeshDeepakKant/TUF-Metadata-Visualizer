@@ -1,13 +1,10 @@
 // This file is server-side only
 
-import { RoleInfo } from './types';
-import { parseISO, format } from 'date-fns';
-import * as path from 'path';
-import * as fs from 'fs';
-
-// Import directly from tuf-js and its models
-import * as tufJs from 'tuf-js';
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
+import { RoleInfo } from './types';
+import fs from 'fs';
+import path from 'path';
+import { format, parseISO } from 'date-fns';
 
 // For client-side requests (via fetch)
 const METADATA_BASE_URL = '/metadata';
@@ -211,103 +208,101 @@ export class TufRepository {
     }
 
     getRoleInfo(): RoleInfo[] {
-        if (!this.rootMetadata) {
-            return [];
+        if (!this.rootMetadata?.signed) {
+            throw new Error('Root metadata not loaded');
         }
 
         const roles: RoleInfo[] = [];
         const root = this.rootMetadata.signed;
-        
-        // Function to transform keyids to truncated format
-        const transformKeyIds = (keyids: string[]): string[] => {
-            return keyids.map(keyid => keyid.substring(0, 8));
-        };
 
-        // Root role
-        const rootRole = root.roles['root'];
-        if (rootRole) {
+        // Add root role
+        roles.push({
+            role: 'root',
+            expires: formatExpirationDate(root.expires),
+            signers: {
+                required: root.roles.root.threshold,
+                total: root.roles.root.keyIDs.length,
+                keyids: root.roles.root.keyIDs
+            },
+            jsonLink: `${METADATA_BASE_URL}/root.json`,
+            version: root.version,
+            specVersion: root.specVersion
+        });
+
+        // Add timestamp role
+        if (this.timestampMetadata?.signed) {
+            const timestamp = this.timestampMetadata.signed;
             roles.push({
-                role: 'root',
-                expires: formatExpirationDate(root.expires),
+                role: 'timestamp',
+                expires: formatExpirationDate(timestamp.expires),
                 signers: {
-                    required: rootRole.threshold,
-                    total: rootRole.keyIDs.length,
-                    keyids: transformKeyIds(rootRole.keyIDs)
+                    required: root.roles.timestamp.threshold,
+                    total: root.roles.timestamp.keyIDs.length,
+                    keyids: root.roles.timestamp.keyIDs
                 },
-                jsonLink: `${METADATA_BASE_URL}/root.json`
+                jsonLink: `${METADATA_BASE_URL}/timestamp.json`,
+                version: timestamp.version,
+                specVersion: timestamp.specVersion
             });
         }
 
-        // Timestamp role
-        if (this.timestampMetadata) {
-            const timestampRole = root.roles['timestamp'];
-            if (timestampRole) {
-                roles.push({
-                    role: 'timestamp',
-                    expires: formatExpirationDate(this.timestampMetadata.signed.expires),
-                    signers: {
-                        required: timestampRole.threshold,
-                        total: timestampRole.keyIDs.length,
-                        keyids: transformKeyIds(timestampRole.keyIDs)
-                    },
-                    jsonLink: `${METADATA_BASE_URL}/timestamp.json`
-                });
-            }
+        // Add snapshot role
+        if (this.snapshotMetadata?.signed) {
+            const snapshot = this.snapshotMetadata.signed;
+            roles.push({
+                role: 'snapshot',
+                expires: formatExpirationDate(snapshot.expires),
+                signers: {
+                    required: root.roles.snapshot.threshold,
+                    total: root.roles.snapshot.keyIDs.length,
+                    keyids: root.roles.snapshot.keyIDs
+                },
+                jsonLink: `${METADATA_BASE_URL}/snapshot.json`,
+                version: snapshot.version,
+                specVersion: snapshot.specVersion
+            });
         }
 
-        // Snapshot role
-        if (this.snapshotMetadata) {
-            const snapshotRole = root.roles['snapshot'];
-            if (snapshotRole) {
-                roles.push({
-                    role: 'snapshot',
-                    expires: formatExpirationDate(this.snapshotMetadata.signed.expires),
-                    signers: {
-                        required: snapshotRole.threshold,
-                        total: snapshotRole.keyIDs.length,
-                        keyids: transformKeyIds(snapshotRole.keyIDs)
-                    },
-                    jsonLink: `${METADATA_BASE_URL}/snapshot.json`
-                });
-            }
+        // Add targets role
+        if (this.targetsMetadata?.signed) {
+            const targets = this.targetsMetadata.signed;
+            roles.push({
+                role: 'targets',
+                expires: formatExpirationDate(targets.expires),
+                signers: {
+                    required: root.roles.targets.threshold,
+                    total: root.roles.targets.keyIDs.length,
+                    keyids: root.roles.targets.keyIDs
+                },
+                jsonLink: `${METADATA_BASE_URL}/targets.json`,
+                version: targets.version,
+                specVersion: targets.specVersion,
+                targets: targets.targets,
+                delegations: targets.delegations
+            });
         }
 
-        // Targets role
-        if (this.targetsMetadata) {
-            const targetsRole = root.roles['targets'];
-            if (targetsRole) {
+        // Add delegated targets
+        Array.from(this.delegatedTargetsMetadata.entries()).forEach(([roleName, metadata]) => {
+            const signed = metadata.signed;
+            const role = root.roles[roleName];
+            if (role) {
                 roles.push({
-                    role: 'targets',
-                    expires: formatExpirationDate(this.targetsMetadata.signed.expires),
+                    role: roleName,
+                    expires: formatExpirationDate(signed.expires),
                     signers: {
-                        required: targetsRole.threshold,
-                        total: targetsRole.keyIDs.length,
-                        keyids: transformKeyIds(targetsRole.keyIDs)
+                        required: role.threshold,
+                        total: role.keyIDs.length,
+                        keyids: role.keyIDs
                     },
-                    jsonLink: `${METADATA_BASE_URL}/targets.json`
+                    jsonLink: `${METADATA_BASE_URL}/${roleName}.json`,
+                    version: signed.version,
+                    specVersion: signed.specVersion,
+                    targets: signed.targets,
+                    delegations: signed.delegations
                 });
             }
-        }
-
-        // Delegated targets roles
-        const delegations = this.targetsMetadata?.signed.delegations;
-        if (delegations?.roles) {
-            for (const role of Object.values(delegations.roles)) {
-                const delegatedData = this.delegatedTargetsMetadata.get(role.name);
-                if (delegatedData) {
-                    roles.push({
-                        role: role.name,
-                        expires: formatExpirationDate(delegatedData.signed.expires),
-                        signers: {
-                            required: role.threshold,
-                            total: role.keyIDs.length,
-                            keyids: transformKeyIds(role.keyIDs)
-                        },
-                        jsonLink: `${METADATA_BASE_URL}/${role.name}.json`
-                    });
-                }
-            }
-        }
+        });
 
         return roles;
     }
