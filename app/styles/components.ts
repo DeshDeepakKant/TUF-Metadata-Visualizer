@@ -95,4 +95,25 @@ export const Badge = styled.span`
   background-color: var(--primary);
   color: white;
   margin-left: 0.5rem;
+`;
+
+// Add the missing styled components
+export const SignerName = styled.span`
+  font-weight: 500;
+`;
+
+export const OnlineKey = styled.span`
+  color: #888;
+  font-style: italic;
+`;
+
+export const ThresholdInfo = styled.span`
+  color: #888;
+  margin-left: 0.25rem;
+`;
+
+export const SignersList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
 `; 

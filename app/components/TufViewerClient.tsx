@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { RoleInfo } from '../utils/types';
+import React, { useEffect, useState } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
 
@@ -15,14 +14,28 @@ export default function TufViewerClient({ roles, version, error }: TufViewerClie
     if (error) {
         return (
             <div style={{ padding: '2rem' }}>
-                <h2>Error</h2>
+                <h2>Loading TUF Repository Data</h2>
                 <p style={{ color: 'red' }}>{error}</p>
                 <p>Please check:</p>
                 <ul>
-                    <li>TUF metadata files (root.json, timestamp.json, snapshot.json, targets.json) exist in the public/metadata directory</li>
+                    <li>TUF metadata files exist in the public/metadata directory</li>
                     <li>The files contain valid JSON in the TUF format</li>
                     <li>The browser console for any network or JavaScript errors</li>
                 </ul>
+                <button 
+                    onClick={() => window.location.reload()} 
+                    style={{
+                        padding: '0.5rem 1rem',
+                        marginTop: '1rem',
+                        backgroundColor: '#0070f3',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Retry Loading
+                </button>
             </div>
         );
     }

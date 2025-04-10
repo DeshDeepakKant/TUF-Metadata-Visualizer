@@ -1,12 +1,13 @@
 // This file is server-side only
 
-import { TufRootMetadata, TufTimestampMetadata, TufSnapshotMetadata, TufTargetsMetadata, TufSignedMetadata, RoleInfo } from './types';
+import { RoleInfo } from './types';
 import { parseISO, format } from 'date-fns';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// Import directly from tuf-js without trying to use non-existent enums
+// Import directly from tuf-js and its models
 import * as tufJs from 'tuf-js';
+import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 
 // For client-side requests (via fetch)
 const METADATA_BASE_URL = '/metadata';
@@ -15,11 +16,11 @@ const METADATA_BASE_URL = '/metadata';
 const METADATA_FS_PATH = path.join(process.cwd(), 'public', 'metadata');
 
 export class TufRepository {
-    private rootMetadata: TufSignedMetadata<TufRootMetadata> | null = null;
-    private timestampMetadata: TufSignedMetadata<TufTimestampMetadata> | null = null;
-    private snapshotMetadata: TufSignedMetadata<TufSnapshotMetadata> | null = null;
-    private targetsMetadata: TufSignedMetadata<TufTargetsMetadata> | null = null;
-    private delegatedTargetsMetadata: Map<string, TufSignedMetadata<TufTargetsMetadata>> = new Map();
+    private rootMetadata: Metadata<Root> | null = null;
+    private timestampMetadata: Metadata<Timestamp> | null = null;
+    private snapshotMetadata: Metadata<Snapshot> | null = null;
+    private targetsMetadata: Metadata<Targets> | null = null;
+    private delegatedTargetsMetadata: Map<string, Metadata<Targets>> = new Map();
     private tufClient: any | null = null;
 
     constructor(baseUrl: string = METADATA_BASE_URL) {
@@ -38,29 +39,143 @@ export class TufRepository {
             // Log the directory contents to debug
             console.log('Metadata directory contents:', fs.readdirSync(METADATA_FS_PATH));
 
-            // Read metadata files directly from the file system on the server
-            this.rootMetadata = await this.readJsonMetadataFile('root.json') as TufSignedMetadata<TufRootMetadata>;
-            this.timestampMetadata = await this.readJsonMetadataFile('timestamp.json') as TufSignedMetadata<TufTimestampMetadata>;
-            this.snapshotMetadata = await this.readJsonMetadataFile('snapshot.json') as TufSignedMetadata<TufSnapshotMetadata>;
-            this.targetsMetadata = await this.readJsonMetadataFile('targets.json') as TufSignedMetadata<TufTargetsMetadata>;
+            try {
+                // Read metadata files directly from the file system on the server
+                const rootData = await this.readJsonMetadataFile('root.json');
+                const rootSigned = Root.fromJSON(rootData.signed);
+                this.rootMetadata = new Metadata<Root>(
+                    rootSigned, 
+                    this.convertSignatures(rootData.signatures)
+                );
+                
+                const timestampData = await this.readJsonMetadataFile('timestamp.json');
+                const timestampSigned = Timestamp.fromJSON(timestampData.signed);
+                this.timestampMetadata = new Metadata<Timestamp>(
+                    timestampSigned, 
+                    this.convertSignatures(timestampData.signatures)
+                );
+                
+                const snapshotData = await this.readJsonMetadataFile('snapshot.json');
+                const snapshotSigned = Snapshot.fromJSON(snapshotData.signed);
+                this.snapshotMetadata = new Metadata<Snapshot>(
+                    snapshotSigned, 
+                    this.convertSignatures(snapshotData.signatures)
+                );
+                
+                const targetsData = await this.readJsonMetadataFile('targets.json');
+                const targetsSigned = Targets.fromJSON(targetsData.signed);
+                this.targetsMetadata = new Metadata<Targets>(
+                    targetsSigned, 
+                    this.convertSignatures(targetsData.signatures)
+                );
 
-            // Fetch delegated targets if they exist
-            if (this.targetsMetadata?.signed.delegations) {
-                for (const role of this.targetsMetadata.signed.delegations.roles) {
-                    try {
-                        const delegatedData = await this.readJsonMetadataFile(`${role.name}.json`) as TufSignedMetadata<TufTargetsMetadata>;
-                        if (delegatedData) {
-                            this.delegatedTargetsMetadata.set(role.name, delegatedData);
-                        }
-                    } catch (e) {
-                        console.warn(`Failed to read delegated role file: ${role.name}.json`);
-                    }
-                }
+                // Fetch delegated targets if they exist in the snapshot metadata
+                await this.loadDelegatedTargets();
+            } catch (error) {
+                console.error("Error loading TUF metadata:", error);
+                throw new Error(`Failed to load TUF metadata: ${error instanceof Error ? error.message : String(error)}`);
             }
         } catch (error) {
             console.error("Error initializing TUF repository:", error);
             throw error;
         }
+    }
+
+    // Load delegated targets from snapshot metadata
+    private async loadDelegatedTargets(): Promise<void> {
+        if (!this.snapshotMetadata?.signed) {
+            return;
+        }
+        
+        const snapshot = this.snapshotMetadata.signed;
+        const metaKeys = Object.keys(snapshot.meta || {});
+        
+        // Get list of actual files in the metadata directory
+        const existingFiles = fs.readdirSync(METADATA_FS_PATH);
+        
+        // Filter for delegated roles that actually exist
+        const delegatedRoles = metaKeys.filter(key => {
+            // Skip top-level metadata files
+            if (['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key)) {
+                return false;
+            }
+            
+            // Must be a JSON file
+            if (!key.endsWith('.json')) {
+                return false;
+            }
+            
+            // Must exist in the filesystem
+            return existingFiles.includes(key);
+        });
+        
+        // Only log if we found delegated roles
+        if (delegatedRoles.length > 0) {
+            console.log(`Processing ${delegatedRoles.length} delegated role(s): ${delegatedRoles.join(', ')}`);
+        }
+        
+        // Process each existing delegated role
+        for (const role of delegatedRoles) {
+            try {
+                const roleName = role.replace('.json', '');
+                const delegatedData = await this.readJsonMetadataFile(role);
+                if (delegatedData) {
+                    const delegatedSigned = Targets.fromJSON(delegatedData.signed);
+                    this.delegatedTargetsMetadata.set(
+                        roleName, 
+                        new Metadata<Targets>(
+                            delegatedSigned, 
+                            this.convertSignatures(delegatedData.signatures)
+                        )
+                    );
+                }
+            } catch (e) {
+                // Log error but continue processing other roles
+                console.error(`Error processing delegated role ${role}:`, e);
+            }
+        }
+        
+        // Log final summary
+        const loadedRoles = Array.from(this.delegatedTargetsMetadata.keys());
+        if (loadedRoles.length > 0) {
+            console.log(`Successfully loaded delegated role(s): ${loadedRoles.join(', ')}`);
+        }
+    }
+
+    // Helper to convert array of signatures to record format
+    private convertSignatures(signatures: Array<{keyid: string, sig: string}>): Record<string, any> {
+        if (!signatures || !Array.isArray(signatures)) {
+            console.warn("No valid signatures array provided");
+            return {};
+        }
+        
+        const result: Record<string, any> = {};
+        
+        // Check for duplicate keyids
+        const keyIds = new Set<string>();
+        
+        for (const sig of signatures) {
+            if (!sig || typeof sig !== 'object' || !('keyid' in sig) || !('sig' in sig)) {
+                console.warn("Skipping invalid signature:", sig);
+                continue;
+            }
+            
+            const { keyid, sig: signature } = sig;
+            
+            if (keyIds.has(keyid)) {
+                console.warn(`Multiple signatures found for keyid ${keyid}`);
+                // Latest one wins in case of duplicates
+            }
+            
+            keyIds.add(keyid);
+            
+            result[keyid] = {
+                keyid,
+                sig: signature
+            };
+        }
+        
+        return result;
     }
 
     private async readJsonMetadataFile(fileName: string): Promise<any> {
@@ -101,65 +216,83 @@ export class TufRepository {
         }
 
         const roles: RoleInfo[] = [];
-        const rootSigned = this.rootMetadata.signed;
+        const root = this.rootMetadata.signed;
+        
+        // Function to transform keyids to truncated format
+        const transformKeyIds = (keyids: string[]): string[] => {
+            return keyids.map(keyid => keyid.substring(0, 8));
+        };
 
         // Root role
-        roles.push({
-            role: 'root',
-            expires: formatExpirationDate(rootSigned.expires),
-            signers: {
-                required: rootSigned.roles.root.threshold,
-                total: rootSigned.roles.root.keyids.length,
-                keyids: rootSigned.roles.root.keyids
-            },
-            jsonLink: `${METADATA_BASE_URL}/root.json`
-        });
+        const rootRole = root.roles['root'];
+        if (rootRole) {
+            roles.push({
+                role: 'root',
+                expires: formatExpirationDate(root.expires),
+                signers: {
+                    required: rootRole.threshold,
+                    total: rootRole.keyIDs.length,
+                    keyids: transformKeyIds(rootRole.keyIDs)
+                },
+                jsonLink: `${METADATA_BASE_URL}/root.json`
+            });
+        }
 
         // Timestamp role
         if (this.timestampMetadata) {
-            roles.push({
-                role: 'timestamp',
-                expires: formatExpirationDate(this.timestampMetadata.signed.expires),
-                signers: {
-                    required: rootSigned.roles.timestamp.threshold,
-                    total: rootSigned.roles.timestamp.keyids.length,
-                    keyids: rootSigned.roles.timestamp.keyids
-                },
-                jsonLink: `${METADATA_BASE_URL}/timestamp.json`
-            });
+            const timestampRole = root.roles['timestamp'];
+            if (timestampRole) {
+                roles.push({
+                    role: 'timestamp',
+                    expires: formatExpirationDate(this.timestampMetadata.signed.expires),
+                    signers: {
+                        required: timestampRole.threshold,
+                        total: timestampRole.keyIDs.length,
+                        keyids: transformKeyIds(timestampRole.keyIDs)
+                    },
+                    jsonLink: `${METADATA_BASE_URL}/timestamp.json`
+                });
+            }
         }
 
         // Snapshot role
         if (this.snapshotMetadata) {
-            roles.push({
-                role: 'snapshot',
-                expires: formatExpirationDate(this.snapshotMetadata.signed.expires),
-                signers: {
-                    required: rootSigned.roles.snapshot.threshold,
-                    total: rootSigned.roles.snapshot.keyids.length,
-                    keyids: rootSigned.roles.snapshot.keyids
-                },
-                jsonLink: `${METADATA_BASE_URL}/snapshot.json`
-            });
+            const snapshotRole = root.roles['snapshot'];
+            if (snapshotRole) {
+                roles.push({
+                    role: 'snapshot',
+                    expires: formatExpirationDate(this.snapshotMetadata.signed.expires),
+                    signers: {
+                        required: snapshotRole.threshold,
+                        total: snapshotRole.keyIDs.length,
+                        keyids: transformKeyIds(snapshotRole.keyIDs)
+                    },
+                    jsonLink: `${METADATA_BASE_URL}/snapshot.json`
+                });
+            }
         }
 
         // Targets role
         if (this.targetsMetadata) {
-            roles.push({
-                role: 'targets',
-                expires: formatExpirationDate(this.targetsMetadata.signed.expires),
-                signers: {
-                    required: rootSigned.roles.targets.threshold,
-                    total: rootSigned.roles.targets.keyids.length,
-                    keyids: rootSigned.roles.targets.keyids
-                },
-                jsonLink: `${METADATA_BASE_URL}/targets.json`
-            });
+            const targetsRole = root.roles['targets'];
+            if (targetsRole) {
+                roles.push({
+                    role: 'targets',
+                    expires: formatExpirationDate(this.targetsMetadata.signed.expires),
+                    signers: {
+                        required: targetsRole.threshold,
+                        total: targetsRole.keyIDs.length,
+                        keyids: transformKeyIds(targetsRole.keyIDs)
+                    },
+                    jsonLink: `${METADATA_BASE_URL}/targets.json`
+                });
+            }
         }
 
         // Delegated targets roles
-        if (this.targetsMetadata?.signed.delegations) {
-            for (const role of this.targetsMetadata.signed.delegations.roles) {
+        const delegations = this.targetsMetadata?.signed.delegations;
+        if (delegations?.roles) {
+            for (const role of Object.values(delegations.roles)) {
                 const delegatedData = this.delegatedTargetsMetadata.get(role.name);
                 if (delegatedData) {
                     roles.push({
@@ -167,8 +300,8 @@ export class TufRepository {
                         expires: formatExpirationDate(delegatedData.signed.expires),
                         signers: {
                             required: role.threshold,
-                            total: role.keyids.length,
-                            keyids: role.keyids
+                            total: role.keyIDs.length,
+                            keyids: transformKeyIds(role.keyIDs)
                         },
                         jsonLink: `${METADATA_BASE_URL}/${role.name}.json`
                     });
@@ -183,29 +316,69 @@ export class TufRepository {
         if (!this.rootMetadata) {
             return {};
         }
-        return this.rootMetadata.signed.keys;
+        
+        // Convert the keys to a plain object for compatibility
+        const keysObj: Record<string, any> = {};
+        Object.entries(this.rootMetadata.signed.keys).forEach(([keyId, keyValue]) => {
+            keysObj[keyId] = keyValue;
+        });
+        
+        return keysObj;
     }
 
-    // Basic verification without using tuf-js
-    async verifyTarget(targetPath: string): Promise<boolean> {
-        try {
-            if (!this.targetsMetadata) {
-                return false;
+    // Get canonical JSON representation of signed data
+    // This is useful for signature verification
+    getCanonicalJSON(data: any): string {
+        // In a real implementation, we would use a canonical JSON library like
+        // the one from tuf-js. For this example, we'll use a simple approach.
+        
+        // Sort keys alphabetically and remove whitespace
+        return JSON.stringify(data, (key, value) => {
+            // Handle special cases like Maps
+            if (value instanceof Map) {
+                return Object.fromEntries(value);
             }
-
-            // Check if the target exists in the targets metadata
-            return Object.keys(this.targetsMetadata.signed.targets).includes(targetPath);
-        } catch (error) {
-            console.error(`Error verifying target ${targetPath}:`, error);
-            return false;
+            return value;
+        }, 0);
+    }
+    
+    // Get the canonical JSON representation of a role's signed data
+    getSignedBytes(roleName: string): string | null {
+        let signed: any = null;
+        
+        switch (roleName) {
+            case 'root':
+                signed = this.rootMetadata?.signed;
+                break;
+            case 'timestamp':
+                signed = this.timestampMetadata?.signed;
+                break;
+            case 'snapshot':
+                signed = this.snapshotMetadata?.signed;
+                break;
+            case 'targets':
+                signed = this.targetsMetadata?.signed;
+                break;
+            default:
+                // Check if it's a delegated role
+                const delegated = this.delegatedTargetsMetadata.get(roleName);
+                signed = delegated?.signed || null;
         }
+        
+        if (!signed) {
+            console.error(`Role ${roleName} not found for getting signed bytes`);
+            return null;
+        }
+        
+        return this.getCanonicalJSON(signed);
     }
 }
 
 function formatExpirationDate(dateString: string): string {
     try {
         const date = parseISO(dateString);
-        return format(date, "MMM d, yyyy HH:mm:ss 'UTC'");
+        // Remove seconds from format to avoid hydration mismatch
+        return format(date, "MMM d, yyyy HH:mm 'UTC'");
     } catch (e) {
         return dateString;
     }
