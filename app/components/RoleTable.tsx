@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-    TableContainer, 
-    Table, 
-    TableRow, 
-    TableHeader, 
-    TableCell, 
-    Link, 
-    SignerInfo, 
-    RequiredSigners, 
+import {
+    TableContainer,
+    Table,
+    TableRow,
+    TableHeader,
+    TableCell,
+    Link,
+    SignerInfo,
+    RequiredSigners,
     TotalSigners,
     SignerName,
     OnlineKey,
@@ -49,29 +49,18 @@ const NestedTableCell = styled.td`
   border-bottom: 1px solid var(--border);
 `;
 
-const ExpandButton = styled.button`
+const ExpandButton = styled.button<{ $expanded?: boolean }>`
   background: none;
   border: none;
   cursor: pointer;
   font-size: 0.75rem;
   margin-right: 0.5rem;
   padding: 0.25rem;
-  transform: ${props => props.expanded ? 'rotate(90deg)' : 'rotate(0)'};
+  transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
   transition: transform 0.2s ease;
 `;
 
-const CategoryButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  padding: 0.5rem;
-  font-weight: 500;
-  color: var(--link);
-  &:hover {
-    text-decoration: underline;
-  }
-`;
+
 
 interface RoleTableProps {
     roles: RoleInfo[];
@@ -83,17 +72,17 @@ const formatKeyId = (keyid: string): string => {
     if (keyid.startsWith('@')) {
         return keyid;
     }
-    
+
     // If it's an online key, return as is
     if (keyid.toLowerCase() === 'online key') {
         return keyid;
     }
-    
+
     // Check if the keyid looks like a hex string and truncate it for display
     if (keyid.match(/^[0-9a-f]+$/i)) {
         return `@${keyid.substring(0, 8)}`;
     }
-    
+
     // Otherwise, add @ to make it look like a username
     return `@${keyid}`;
 };
@@ -104,20 +93,20 @@ const isOnlineKey = (keyid: string): boolean => {
     if (keyid.toLowerCase() === 'online key') {
         return true;
     }
-    
+
     // Check for common patterns in online key IDs
-    if (keyid.toLowerCase().includes('online') || 
+    if (keyid.toLowerCase().includes('online') ||
         keyid === '0c87432c' ||
         keyid === '5e3a4021') {
         return true;
     }
-    
+
     return false;
 };
 
 export default function RoleTable({ roles }: RoleTableProps) {
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
-    const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
 
     if (!roles || roles.length === 0) {
         return <div>No roles found.</div>;
@@ -129,19 +118,18 @@ export default function RoleTable({ roles }: RoleTableProps) {
     // Find the targets role
     const targetsRole = roles.find(role => role.role === 'targets');
 
+    // Get delegations from targets role for registry.npmjs.org
+    const registryDelegation = targetsRole?.delegations?.roles?.find(role => role.name === 'registry.npmjs.org');
+
     const handleRowExpand = (roleName: string) => {
         if (expandedRow === roleName) {
             setExpandedRow(null);
-            setExpandedSection(null);
         } else {
             setExpandedRow(roleName);
-            setExpandedSection(null);
         }
     };
 
-    const handleSectionExpand = (section: string) => {
-        setExpandedSection(expandedSection === section ? null : section);
-    };
+
 
     return (
         <TableContainer>
@@ -163,10 +151,10 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <React.Fragment key={role.role}>
                             <TableRow>
                                 <TableCell>
-                                    {role.role === 'targets' && (
-                                        <ExpandButton 
-                                            expanded={expandedRow === 'targets'} 
-                                            onClick={() => handleRowExpand('targets')}
+                                    {(role.role === 'targets' || role.role === 'registry.npmjs.org') && (
+                                        <ExpandButton
+                                            $expanded={expandedRow === role.role}
+                                            onClick={() => handleRowExpand(role.role)}
                                         >
                                             ▶
                                         </ExpandButton>
@@ -195,7 +183,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                                     </ThresholdInfo>
                                                 </SignersList>
                                             )}
-                                            
+
                                             {/* Online keys */}
                                             {role.signers.keyids.some(keyid => isOnlineKey(keyid)) && (
                                                 <SignersList>
@@ -220,43 +208,62 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                 <TableRow>
                                     <TableCell colSpan={5}>
                                         <NestedTableContainer>
-                                            <CategoryButton onClick={() => handleSectionExpand('targets')}>
-                                                <ExpandButton expanded={expandedSection === 'targets'}>▶</ExpandButton>
-                                                Targets
-                                            </CategoryButton>
-                                            
-                                            {/* Targets content */}
-                                            {expandedSection === 'targets' && targetsRole?.targets && (
+                                            {/* Targets content - only show paths directly */}
+                                            {targetsRole?.targets && (
                                                 <NestedTable>
                                                     <thead>
                                                         <NestedTableRow>
                                                             <NestedTableHeader>Path</NestedTableHeader>
-                                                            <NestedTableHeader>Size</NestedTableHeader>
-                                                            <NestedTableHeader>Hashes</NestedTableHeader>
                                                         </NestedTableRow>
                                                     </thead>
                                                     <tbody>
-                                                        {Object.entries(targetsRole.targets).map(([path, targetInfo]) => (
+                                                        {Object.entries(targetsRole.targets).map(([path]) => (
                                                             <NestedTableRow key={path}>
                                                                 <NestedTableCell>{path}</NestedTableCell>
-                                                                <NestedTableCell>{targetInfo.length.toLocaleString()} bytes</NestedTableCell>
-                                                                <NestedTableCell>
-                                                                    {Object.entries(targetInfo.hashes).map(([algorithm, hash]) => (
-                                                                        <div key={algorithm}>
-                                                                            <strong>{algorithm}:</strong> {hash.substring(0, 16)}...
-                                                                        </div>
-                                                                    ))}
-                                                                </NestedTableCell>
                                                             </NestedTableRow>
                                                         ))}
                                                     </tbody>
                                                 </NestedTable>
                                             )}
+                                        </NestedTableContainer>
+                                    </TableCell>
+                                </TableRow>
+                            )}
 
-                                            <CategoryButton onClick={() => handleSectionExpand('delegations')}>
-                                                <ExpandButton expanded={expandedSection === 'delegations'}>▶</ExpandButton>
-                                                Delegations
-                                            </CategoryButton>
+                            {/* Nested content for registry.npmjs.org */}
+                            {role.role === 'registry.npmjs.org' && expandedRow === 'registry.npmjs.org' && (
+                                <TableRow>
+                                    <TableCell colSpan={5}>
+                                        <NestedTableContainer>
+                                            {/* Registry delegation details - show directly */}
+                                            {registryDelegation && (
+                                                <NestedTable>
+                                                    <thead>
+                                                        <NestedTableRow>
+                                                            <NestedTableHeader>Property</NestedTableHeader>
+                                                            <NestedTableHeader>Value</NestedTableHeader>
+                                                        </NestedTableRow>
+                                                    </thead>
+                                                    <tbody>
+                                                        <NestedTableRow>
+                                                            <NestedTableCell>Paths</NestedTableCell>
+                                                            <NestedTableCell>
+                                                                {registryDelegation.paths?.map((path, index) => (
+                                                                    <div key={index}>{path}</div>
+                                                                ))}
+                                                            </NestedTableCell>
+                                                        </NestedTableRow>
+                                                        <NestedTableRow>
+                                                            <NestedTableCell>Terminating</NestedTableCell>
+                                                            <NestedTableCell>{registryDelegation.terminating ? 'Yes' : 'No'}</NestedTableCell>
+                                                        </NestedTableRow>
+                                                        <NestedTableRow>
+                                                            <NestedTableCell>Threshold</NestedTableCell>
+                                                            <NestedTableCell>{registryDelegation.threshold}</NestedTableCell>
+                                                        </NestedTableRow>
+                                                    </tbody>
+                                                </NestedTable>
+                                            )}
                                         </NestedTableContainer>
                                     </TableCell>
                                 </TableRow>
@@ -267,4 +274,4 @@ export default function RoleTable({ roles }: RoleTableProps) {
             </Table>
         </TableContainer>
     );
-} 
+}
