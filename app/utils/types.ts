@@ -123,4 +123,40 @@ export interface RoleInfo {
             terminating?: boolean;
         }>;
     };
+}
+
+// Root metadata diff interfaces
+export interface KeyDiff {
+    keyid: string;
+    status: 'added' | 'removed' | 'changed';
+    keytype?: string;
+    scheme?: string;
+    oldKeytype?: string;
+    oldScheme?: string;
+    keyowner?: string; // From x-tuf-on-ci-keyowner
+}
+
+export interface RoleDiff {
+    roleName: string;
+    addedKeyids: string[];
+    removedKeyids: string[];
+    oldThreshold?: number;
+    newThreshold?: number;
+}
+
+export interface SignatureDiff {
+    keyid: string;
+    oldSigned: boolean;
+    newSigned: boolean;
+    keyowner?: string;
+}
+
+export interface RootDiff {
+    oldVersion: number;
+    newVersion: number;
+    oldExpires: string;
+    newExpires: string;
+    keyDiffs: KeyDiff[];
+    roleDiffs: RoleDiff[];
+    signatureDiffs: SignatureDiff[];
 } 

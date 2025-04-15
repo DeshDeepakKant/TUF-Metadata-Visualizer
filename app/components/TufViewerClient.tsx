@@ -3,7 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
+import RootVersionSelector from './RootVersionSelector';
 import { RoleInfo } from '../utils/types';
+import styled from 'styled-components';
+
+// Styled components
+const SectionDivider = styled.div`
+  height: 1px;
+  background-color: var(--border);
+  margin: 2rem 0;
+`;
+
+const SectionTitle = styled.h2`
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+`;
 
 interface TufViewerClientProps {
     roles: RoleInfo[];
@@ -51,11 +66,22 @@ export default function TufViewerClient({ roles, version, error }: TufViewerClie
                     TUF Specification Version: {specVersion}
                 </div>
             )}
+
+            {/* Current TUF Roles Section */}
+            <SectionTitle>TUF Repository Roles</SectionTitle>
             <RoleTable roles={roles} />
+            
+            {/* Root Version Diff Section */}
+            <SectionDivider />
+            <SectionTitle>Root Version Diff</SectionTitle>
+            <RootVersionSelector />
+            
+            {/* Footer */}
+            <SectionDivider />
             <RepoInfo
                 lastUpdated={new Date().toUTCString()}
                 toolVersion={version}
             />
         </div>
     );
-} 
+}
