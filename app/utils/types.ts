@@ -159,4 +159,14 @@ export interface RootDiff {
     keyDiffs: KeyDiff[];
     roleDiffs: RoleDiff[];
     signatureDiffs: SignatureDiff[];
+    oldSignatureStatus?: {
+        signed: number;
+        total: number;
+        required: number;
+    };
+    newSignatureStatus?: {
+        signed: number;
+        total: number;
+        required: number;
+    };
 } 

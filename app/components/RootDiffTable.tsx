@@ -140,6 +140,24 @@ const KeyId = styled.span`
   border-radius: 2px;
 `;
 
+const VerifiedBadge = styled.span`
+  background-color: var(--success-light);
+  color: var(--success);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+`;
+
+const UnverifiedBadge = styled.span`
+  background-color: var(--error-light);
+  color: var(--error);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+`;
+
 // Summary component at the top
 const DiffSummary = styled.div`
   background-color: var(--background-subtle);
@@ -172,41 +190,13 @@ const EmptyState = styled.div`
   border-radius: 4px;
 `;
 
-// Add these new components to the styled components section
-const SignatureStatusBadge = styled.div`
-  padding: 0.5rem;
-  border-radius: 4px;
-  background-color: var(--background-subtle);
-  display: inline-block;
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-`;
-
-const VerifiedBadge = styled.span`
-  color: var(--success);
-  font-weight: 500;
-`;
-
-const NotVerifiedBadge = styled.span`
-  color: var(--error);
-  font-weight: 500;
-`;
-
-const KeyCount = styled.span`
-  background-color: var(--background-subtle);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  margin-left: 0.5rem;
-`;
-
 interface RootDiffTableProps {
   diff: RootDiff | null;
   loading?: boolean;
 }
 
 export default function RootDiffTable({ diff, loading = false }: RootDiffTableProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'keys' | 'roles' | 'signatures'>('overview');
+  const [activeTab, setActiveTab] = useState<'summary' | 'keys' | 'roles' | 'signatures'>('summary');
   
   if (loading) {
     return <EmptyState>Loading diff data...</EmptyState>;
@@ -219,6 +209,23 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
       </EmptyState>
     );
   }
+  
+  // Helper function to format signature verification status
+  const getVerificationStatus = (sigCount: number, reqCount: number) => {
+    const isVerified = sigCount >= reqCount;
+    return (
+      <div>
+        <div><strong>{sigCount}</strong> of <strong>{reqCount}</strong> required signatures present</div>
+        <div style={{ marginTop: '0.5rem' }}>
+          {isVerified ? (
+            <VerifiedBadge>Verified</VerifiedBadge>
+          ) : (
+            <UnverifiedBadge>Not Verified</UnverifiedBadge>
+          )}
+        </div>
+      </div>
+    );
+  };
   
   // Calculate time difference between expiry dates
   const oldExpiryDate = new Date(diff.oldExpires);
@@ -239,13 +246,22 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
   const hasSignatureChanges = diff.signatureDiffs.length > 0;
   const hasAnyChanges = hasKeyChanges || hasRoleChanges || hasSignatureChanges;
   
+  // Calculate if there are changes to display for each section
+  const hasVersionChange = diff.oldVersion !== diff.newVersion;
+  const hasExpiryChange = diff.oldExpires !== diff.newExpires;
+
+  // Calculate tab counts for badges
+  const keysCount = hasKeyChanges ? diff.keyDiffs.length : 0;
+  const rolesCount = hasRoleChanges ? diff.roleDiffs.length : 0;
+  const signaturesCount = hasSignatureChanges ? diff.signatureDiffs.length : 0;
+  
   return (
     <DiffTableContainer>
       <DiffTitle>Root Metadata Diff (v{diff.oldVersion} → v{diff.newVersion})</DiffTitle>
       
       {/* Summary information */}
       <DiffSummary>
-        <DiffSummaryTitle>Summary</DiffSummaryTitle>
+        <DiffSummaryTitle>Root Metadata Changes</DiffSummaryTitle>
         <DiffSummaryItem>
           <DiffSummaryLabel>Version:</DiffSummaryLabel>
           <span>{diff.oldVersion} → {diff.newVersion}</span>
@@ -253,6 +269,17 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
         <DiffSummaryItem>
           <DiffSummaryLabel>Expires:</DiffSummaryLabel>
           <span>{formatExpirationDate(diff.oldExpires)} → {formatExpirationDate(diff.newExpires)} ({expiryChangeText})</span>
+        </DiffSummaryItem>
+        <DiffSummaryItem>
+          <DiffSummaryLabel>Verification:</DiffSummaryLabel>
+          <span>
+            {diff.oldSignatureStatus && 
+              `v${diff.oldVersion}: ${diff.oldSignatureStatus.signed} of ${diff.oldSignatureStatus.required} required signatures`
+            } →{' '}
+            {diff.newSignatureStatus && 
+              `v${diff.newVersion}: ${diff.newSignatureStatus.signed} of ${diff.newSignatureStatus.required} required signatures`
+            }
+          </span>
         </DiffSummaryItem>
         <DiffSummaryItem>
           <DiffSummaryLabel>Changes:</DiffSummaryLabel>
@@ -267,10 +294,10 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
       {/* Tab selector */}
       <DiffSelector>
         <DiffSelectButton 
-          $active={activeTab === 'overview'} 
-          onClick={() => setActiveTab('overview')}
+          $active={activeTab === 'summary'} 
+          onClick={() => setActiveTab('summary')}
         >
-          Overview
+          Summary
         </DiffSelectButton>
         <DiffSelectButton 
           $active={activeTab === 'keys'} 
@@ -300,51 +327,53 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
       )}
       
       {/* Overview tab with side-by-side comparison */}
-      {activeTab === 'overview' && hasAnyChanges && (
+      {activeTab === 'summary' && hasAnyChanges && (
         <SideBySideContainer>
-          {/* Side-by-side overview */}
-          <SideBySideTable>
-            <thead>
-              <tr>
-                <SideBySideHeaderProperty>Property</SideBySideHeaderProperty>
-                <SideBySideHeader>Changes</SideBySideHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Only show version change if it's unexpected (more than +1) */}
-              {diff.newVersion - diff.oldVersion > 1 && (
+          {/* Version and expiration summary - simplified */}
+          <ComparisonSection>
+            <ComparisonTitle>Version Information</ComparisonTitle>
+            <SideBySideTable>
+              <thead>
                 <tr>
-                  <SideBySideCell>Version</SideBySideCell>
+                  <SideBySideHeaderProperty>Property</SideBySideHeaderProperty>
+                  <SideBySideHeader>Previous</SideBySideHeader>
+                  <SideBySideHeader>Current</SideBySideHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {hasVersionChange && (
+                  <tr>
+                    <SideBySideCell>Version</SideBySideCell>
+                    <SideBySideCell>{diff.oldVersion}</SideBySideCell>
+                    <SideBySideCell>
+                      {diff.newVersion}
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <ChangedBadge>Incremented by {diff.newVersion - diff.oldVersion}</ChangedBadge>
+                      </div>
+                    </SideBySideCell>
+                  </tr>
+                )}
+                <tr>
+                  <SideBySideCell>Expires</SideBySideCell>
+                  <SideBySideCell>{formatExpirationDate(diff.oldExpires)}</SideBySideCell>
                   <SideBySideCell>
-                    <ChangedBadge>Unexpected Version Jump</ChangedBadge>
-                    {diff.oldVersion} → {diff.newVersion} 
-                    (Expected: {diff.oldVersion + 1})
+                    {formatExpirationDate(diff.newExpires)}
+                    {expiryDiffDays !== 0 && (
+                      <div style={{ marginTop: '0.25rem' }}>
+                        {expiryDiffDays > 0 ? (
+                          <AddedBadge>Extended by {expiryDiffDays} days</AddedBadge>
+                        ) : (
+                          <RemovedBadge>Shortened by {Math.abs(expiryDiffDays)} days</RemovedBadge>
+                        )}
+                      </div>
+                    )}
                   </SideBySideCell>
                 </tr>
-              )}
-              <tr>
-                <SideBySideCell>Expires</SideBySideCell>
-                <SideBySideCell>
-                  {expiryDiffDays !== 0 ? (
-                    <>
-                      {expiryDiffDays > 0 ? (
-                        <AddedBadge>Extended by {expiryDiffDays} days</AddedBadge>
-                      ) : (
-                        <RemovedBadge>Shortened by {Math.abs(expiryDiffDays)} days</RemovedBadge>
-                      )}
-                      <div style={{ marginTop: '0.25rem' }}>
-                        {formatExpirationDate(diff.oldExpires)} → {formatExpirationDate(diff.newExpires)}
-                      </div>
-                    </>
-                  ) : (
-                    'No change'
-                  )}
-                </SideBySideCell>
-              </tr>
-            </tbody>
-          </SideBySideTable>
+              </tbody>
+            </SideBySideTable>
+          </ComparisonSection>
 
-          {/* Key changes if any - simplified */}
+          {/* Key changes if any */}
           {hasKeyChanges && (
             <ComparisonSection>
               <ComparisonTitle>Key Changes</ComparisonTitle>
@@ -352,7 +381,8 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
                 <thead>
                   <tr>
                     <SideBySideHeaderProperty>Key ID</SideBySideHeaderProperty>
-                    <SideBySideHeader>Changes</SideBySideHeader>
+                    <SideBySideHeader>Previous Version</SideBySideHeader>
+                    <SideBySideHeader>Current Version</SideBySideHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -360,34 +390,27 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
                     <tr key={keyDiff.keyid}>
                       <SideBySideCell>
                         <KeyId>{truncateKeyId(keyDiff.keyid)}</KeyId>
-                        {keyDiff.keyowner && (
-                          <div style={{ marginTop: '0.25rem' }}>
-                            {keyDiff.keyowner}
-                          </div>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          Owner: {keyDiff.keyowner || 'Unknown'}
+                        </div>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          {keyDiff.status === 'added' && <AddedBadge>New key</AddedBadge>}
+                          {keyDiff.status === 'removed' && <RemovedBadge>Removed key</RemovedBadge>}
+                          {keyDiff.status === 'changed' && <ChangedBadge>Modified key</ChangedBadge>}
+                        </div>
+                      </SideBySideCell>
+                      <SideBySideCell>
+                        {keyDiff.status === 'removed' || keyDiff.status === 'changed' ? (
+                          <div>Present</div>
+                        ) : (
+                          <div>Not present</div>
                         )}
                       </SideBySideCell>
                       <SideBySideCell>
-                        <div>
-                          {keyDiff.status === 'added' && (
-                            <AddedBadge>Added</AddedBadge>
-                          )}
-                          {keyDiff.status === 'removed' && (
-                            <RemovedBadge>Removed</RemovedBadge>
-                          )}
-                          {keyDiff.status === 'changed' && (
-                            <ChangedBadge>Changed</ChangedBadge>
-                          )}
-                        </div>
-                        
-                        {keyDiff.status === 'changed' && (
-                          <div style={{ marginTop: '0.5rem' }}>
-                            {keyDiff.oldKeytype !== keyDiff.keytype && (
-                              <div>Key type changed: {keyDiff.oldKeytype} → {keyDiff.keytype}</div>
-                            )}
-                            {keyDiff.oldScheme !== keyDiff.scheme && (
-                              <div>Scheme changed: {keyDiff.oldScheme} → {keyDiff.scheme}</div>
-                            )}
-                          </div>
+                        {keyDiff.status === 'added' || keyDiff.status === 'changed' ? (
+                          <div>Present</div>
+                        ) : (
+                          <div>Not present</div>
                         )}
                       </SideBySideCell>
                     </tr>
@@ -397,7 +420,7 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
             </ComparisonSection>
           )}
 
-          {/* Role changes if any - simplified */}
+          {/* Role changes if any */}
           {hasRoleChanges && (
             <ComparisonSection>
               <ComparisonTitle>Role Changes</ComparisonTitle>
@@ -405,73 +428,68 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
                 <thead>
                   <tr>
                     <SideBySideHeaderProperty>Role</SideBySideHeaderProperty>
-                    <SideBySideHeader>Changes</SideBySideHeader>
+                    <SideBySideHeader>Version {diff.oldVersion}</SideBySideHeader>
+                    <SideBySideHeader>Version {diff.newVersion}</SideBySideHeader>
                   </tr>
                 </thead>
                 <tbody>
                   {diff.roleDiffs.map(roleDiff => (
                     <tr key={roleDiff.roleName}>
                       <SideBySideCell>
-                        <div>{roleDiff.roleName}</div>
+                        <div><strong>{roleDiff.roleName}</strong></div>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          {!roleDiff.oldThreshold && roleDiff.newThreshold && <AddedBadge>Added</AddedBadge>}
+                          {roleDiff.oldThreshold && !roleDiff.newThreshold && <RemovedBadge>Removed</RemovedBadge>}
+                          {roleDiff.oldThreshold && roleDiff.newThreshold && <ChangedBadge>Changed</ChangedBadge>}
+                        </div>
                       </SideBySideCell>
                       <SideBySideCell>
-                        {/* Threshold changes */}
-                        {roleDiff.oldThreshold !== undefined && 
-                         roleDiff.newThreshold !== undefined && 
-                         roleDiff.oldThreshold !== roleDiff.newThreshold && (
-                          <div>
-                            <ChangedBadge>Threshold Change</ChangedBadge> {roleDiff.oldThreshold} → {roleDiff.newThreshold}
-                            {roleDiff.oldThreshold < roleDiff.newThreshold ? (
-                              <div style={{ marginTop: '0.25rem' }}>Security increased: requires more signatures</div>
-                            ) : (
-                              <div style={{ marginTop: '0.25rem' }}>Security reduced: requires fewer signatures</div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Key changes summary */}
-                        {(roleDiff.addedKeyids.length > 0 || roleDiff.removedKeyids.length > 0) && (
-                          <div style={{ marginTop: '0.5rem' }}>
-                            <strong>Key Changes:</strong>
-                            
-                            {roleDiff.addedKeyids.length > 0 && (
-                              <div style={{ marginTop: '0.25rem' }}>
-                                <AddedBadge>Added</AddedBadge> {roleDiff.addedKeyids.length} key(s)
-                                
-                                {roleDiff.addedKeyids.length <= 5 && (
-                                  <ul style={{ margin: '0.25rem 0 0 1rem' }}>
-                                    {roleDiff.addedKeyids.map(keyId => (
-                                      <li key={keyId}>
-                                        <KeyId>{truncateKeyId(keyId)}</KeyId>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-                            )}
-                            
-                            {roleDiff.removedKeyids.length > 0 && (
-                              <div style={{ marginTop: '0.25rem' }}>
-                                <RemovedBadge>Removed</RemovedBadge> {roleDiff.removedKeyids.length} key(s)
-                                
-                                {roleDiff.removedKeyids.length <= 5 && (
-                                  <ul style={{ margin: '0.25rem 0 0 1rem' }}>
+                        {roleDiff.oldThreshold ? (
+                          <>
+                            <div>Threshold: <strong>{roleDiff.oldThreshold}</strong></div>
+                            <div style={{ marginTop: '0.25rem' }}>
+                              {roleDiff.removedKeyids.length > 0 && (
+                                <div style={{ marginTop: '0.5rem' }}>
+                                  Keys:
+                                  <ul style={{ margin: '0.25rem 0 0 1.25rem' }}>
                                     {roleDiff.removedKeyids.map(keyId => (
                                       <li key={keyId}>
-                                        <KeyId>{truncateKeyId(keyId)}</KeyId>
+                                        <KeyId>{truncateKeyId(keyId)}</KeyId> <RemovedBadge>Removed</RemovedBadge>
                                       </li>
                                     ))}
                                   </ul>
-                                )}
-                              </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div>Not present</div>
+                        )}
+                      </SideBySideCell>
+                      <SideBySideCell>
+                        {roleDiff.newThreshold !== undefined ? (
+                          <div>
+                            Threshold: {roleDiff.newThreshold}
+                            {roleDiff.oldThreshold !== undefined && roleDiff.oldThreshold !== roleDiff.newThreshold && (
+                              <ChangedBadge style={{ marginLeft: '0.5rem' }}>
+                                {roleDiff.oldThreshold < roleDiff.newThreshold ? 'Increased' : 'Decreased'}
+                              </ChangedBadge>
                             )}
                           </div>
+                        ) : (
+                          <div>Not present</div>
                         )}
-                        
-                        {roleDiff.oldThreshold === roleDiff.newThreshold && 
-                         roleDiff.addedKeyids.length === 0 && 
-                         roleDiff.removedKeyids.length === 0 && (
-                          <div>No significant changes</div>
+                        {roleDiff.addedKeyids.length > 0 && (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            Keys:
+                            <ul style={{ margin: '0.25rem 0 0 1.25rem' }}>
+                              {roleDiff.addedKeyids.map(keyId => (
+                                <li key={keyId}>
+                                  <KeyId>{truncateKeyId(keyId)}</KeyId> <AddedBadge>Added</AddedBadge>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                       </SideBySideCell>
                     </tr>
@@ -481,109 +499,74 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
             </ComparisonSection>
           )}
 
-          {/* Signature changes if any - simplified */}
+          {/* Signature changes if any */}
           {hasSignatureChanges && (
             <ComparisonSection>
-              <ComparisonTitle>Signature Changes</ComparisonTitle>
+              <ComparisonTitle>Signature Verification Status</ComparisonTitle>
               <SideBySideTable>
                 <thead>
                   <tr>
-                    <SideBySideHeaderProperty>Role</SideBySideHeaderProperty>
-                    <SideBySideHeader>Signature Status</SideBySideHeader>
+                    <SideBySideHeaderProperty>Verification</SideBySideHeaderProperty>
+                    <SideBySideHeader>Version {diff.oldVersion}</SideBySideHeader>
+                    <SideBySideHeader>Version {diff.newVersion}</SideBySideHeader>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <SideBySideCell>Root</SideBySideCell>
                     <SideBySideCell>
-                      {(() => {
-                        const oldSignedCount = diff.signatureDiffs.filter(s => s.oldSigned).length;
-                        const newSignedCount = diff.signatureDiffs.filter(s => s.newSigned).length;
-                        const totalSigCount = Array.from(new Set([
-                          ...diff.signatureDiffs.map(s => s.keyid)
-                        ])).length;
-                        const rootRole = diff.roleDiffs.find(r => r.roleName === 'root');
-                        const oldThreshold = rootRole?.oldThreshold ?? 3;
-                        const newThreshold = rootRole?.newThreshold ?? 3;
-                        
-                        return (
-                          <>
-                            <div>
-                              <strong>Verification Status:</strong>
-                              <div style={{ marginTop: '0.25rem' }}>
-                                Old version: 
-                                {oldSignedCount >= oldThreshold ? (
-                                  <VerifiedBadge> ✓ Verified</VerifiedBadge>
-                                ) : (
-                                  <NotVerifiedBadge> ✗ Not Verified</NotVerifiedBadge>
-                                )}
-                              </div>
-                              <div style={{ marginTop: '0.25rem' }}>
-                                New version: 
-                                {newSignedCount >= newThreshold ? (
-                                  <VerifiedBadge> ✓ Verified</VerifiedBadge>
-                                ) : (
-                                  <NotVerifiedBadge> ✗ Not Verified</NotVerifiedBadge>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div style={{ marginTop: '0.75rem' }}>
-                              <strong>Signature Summary:</strong>
-                              <SignatureStatusBadge style={{ display: 'block', marginTop: '0.5rem' }}>
-                                Old version: signed by {oldSignedCount} out of {oldThreshold} required signers 
-                                ({totalSigCount} total keys)
-                              </SignatureStatusBadge>
-                              <SignatureStatusBadge style={{ display: 'block', marginTop: '0.5rem' }}>
-                                New version: signed by {newSignedCount} out of {newThreshold} required signers 
-                                ({totalSigCount} total keys)
-                              </SignatureStatusBadge>
-                            </div>
-                            
-                            <div style={{ marginTop: '0.75rem' }}>
-                              <strong>Individual Changes:</strong>
-                              <table style={{ width: '100%', marginTop: '0.5rem', borderCollapse: 'collapse' }}>
-                                <thead>
-                                  <tr>
-                                    <th style={{ textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                                      Key ID
-                                    </th>
-                                    <th style={{ textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                                      Change
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {diff.signatureDiffs.map(sigDiff => (
-                                    <tr key={sigDiff.keyid}>
-                                      <td style={{ padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                                        <KeyId>{truncateKeyId(sigDiff.keyid)}</KeyId>
-                                        {sigDiff.keyowner && <div>{sigDiff.keyowner}</div>}
-                                      </td>
-                                      <td style={{ padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                                        {!sigDiff.oldSigned && sigDiff.newSigned && (
-                                          <AddedBadge>Newly Signed</AddedBadge>
-                                        )}
-                                        {sigDiff.oldSigned && !sigDiff.newSigned && (
-                                          <RemovedBadge>Signature Removed</RemovedBadge>
-                                        )}
-                                        {sigDiff.oldSigned && sigDiff.newSigned && (
-                                          <span>No change</span>
-                                        )}
-                                        {!sigDiff.oldSigned && !sigDiff.newSigned && (
-                                          <span>Unsigned in both versions</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </>
-                        );
-                      })()}
+                      <strong>Overall Status</strong>
+                    </SideBySideCell>
+                    <SideBySideCell>
+                      {diff.oldSignatureStatus && 
+                        getVerificationStatus(
+                          diff.oldSignatureStatus.signed, 
+                          diff.oldSignatureStatus.required
+                        )
+                      }
+                    </SideBySideCell>
+                    <SideBySideCell>
+                      {diff.newSignatureStatus && 
+                        getVerificationStatus(
+                          diff.newSignatureStatus.signed, 
+                          diff.newSignatureStatus.required
+                        )
+                      }
                     </SideBySideCell>
                   </tr>
+                  {diff.signatureDiffs.map(sigDiff => (
+                    <tr key={sigDiff.keyid}>
+                      <SideBySideCell>
+                        <KeyId>{truncateKeyId(sigDiff.keyid)}</KeyId>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          {!sigDiff.oldSigned && sigDiff.newSigned && <AddedBadge>Added</AddedBadge>}
+                          {sigDiff.oldSigned && !sigDiff.newSigned && <RemovedBadge>Removed</RemovedBadge>}
+                          {sigDiff.oldSigned !== sigDiff.newSigned && <ChangedBadge>Changed</ChangedBadge>}
+                        </div>
+                      </SideBySideCell>
+                      <SideBySideCell>
+                        {sigDiff.oldSigned ? (
+                          <div>
+                            <VerifiedBadge>Signed</VerifiedBadge>
+                          </div>
+                        ) : (
+                          <div>
+                            <UnverifiedBadge>Unsigned</UnverifiedBadge>
+                          </div>
+                        )}
+                      </SideBySideCell>
+                      <SideBySideCell>
+                        {sigDiff.newSigned ? (
+                          <div>
+                            <VerifiedBadge>Signed</VerifiedBadge>
+                          </div>
+                        ) : (
+                          <div>
+                            <UnverifiedBadge>Unsigned</UnverifiedBadge>
+                          </div>
+                        )}
+                      </SideBySideCell>
+                    </tr>
+                  ))}
                 </tbody>
               </SideBySideTable>
             </ComparisonSection>
@@ -591,13 +574,14 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
         </SideBySideContainer>
       )}
       
-      {/* Keys tab - detailed view with side-by-side comparison */}
+      {/* Keys tab - simplified view with side-by-side comparison */}
       {activeTab === 'keys' && hasKeyChanges && (
         <SideBySideTable>
           <thead>
             <tr>
               <SideBySideHeaderProperty>Key ID</SideBySideHeaderProperty>
-              <SideBySideHeader>Changes</SideBySideHeader>
+              <SideBySideHeader>Previous Version</SideBySideHeader>
+              <SideBySideHeader>Current Version</SideBySideHeader>
             </tr>
           </thead>
           <tbody>
@@ -605,34 +589,27 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
               <tr key={keyDiff.keyid}>
                 <SideBySideCell>
                   <KeyId>{truncateKeyId(keyDiff.keyid)}</KeyId>
-                  {keyDiff.keyowner && (
-                    <div style={{ marginTop: '0.25rem' }}>
-                      {keyDiff.keyowner}
-                    </div>
+                  <div style={{ marginTop: '0.25rem' }}>
+                    Owner: {keyDiff.keyowner || 'Unknown'}
+                  </div>
+                  <div style={{ marginTop: '0.25rem' }}>
+                    {keyDiff.status === 'added' && <AddedBadge>New key</AddedBadge>}
+                    {keyDiff.status === 'removed' && <RemovedBadge>Removed key</RemovedBadge>}
+                    {keyDiff.status === 'changed' && <ChangedBadge>Modified key</ChangedBadge>}
+                  </div>
+                </SideBySideCell>
+                <SideBySideCell>
+                  {keyDiff.status === 'removed' || keyDiff.status === 'changed' ? (
+                    <div>Present</div>
+                  ) : (
+                    <div>Not present</div>
                   )}
                 </SideBySideCell>
                 <SideBySideCell>
-                  <div>
-                    {keyDiff.status === 'added' && (
-                      <AddedBadge>Added</AddedBadge>
-                    )}
-                    {keyDiff.status === 'removed' && (
-                      <RemovedBadge>Removed</RemovedBadge>
-                    )}
-                    {keyDiff.status === 'changed' && (
-                      <ChangedBadge>Changed</ChangedBadge>
-                    )}
-                  </div>
-                  
-                  {keyDiff.status === 'changed' && (
-                    <div style={{ marginTop: '0.5rem' }}>
-                      {keyDiff.oldKeytype !== keyDiff.keytype && (
-                        <div>Key type changed: {keyDiff.oldKeytype} → {keyDiff.keytype}</div>
-                      )}
-                      {keyDiff.oldScheme !== keyDiff.scheme && (
-                        <div>Scheme changed: {keyDiff.oldScheme} → {keyDiff.scheme}</div>
-                      )}
-                    </div>
+                  {keyDiff.status === 'added' || keyDiff.status === 'changed' ? (
+                    <div>Present</div>
+                  ) : (
+                    <div>Not present</div>
                   )}
                 </SideBySideCell>
               </tr>
@@ -647,73 +624,89 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
           <thead>
             <tr>
               <SideBySideHeaderProperty>Role</SideBySideHeaderProperty>
-              <SideBySideHeader>Changes</SideBySideHeader>
+              <SideBySideHeader>Previous Version</SideBySideHeader>
+              <SideBySideHeader>Current Version</SideBySideHeader>
             </tr>
           </thead>
           <tbody>
             {diff.roleDiffs.map(roleDiff => (
               <tr key={roleDiff.roleName}>
                 <SideBySideCell>
-                  <div>{roleDiff.roleName}</div>
+                  <div><strong>{roleDiff.roleName}</strong></div>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {roleDiff.oldThreshold !== roleDiff.newThreshold && (
+                      <ChangedBadge>Threshold Changed</ChangedBadge>
+                    )}
+                    {roleDiff.addedKeyids.length > 0 && (
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <AddedBadge>Keys Added</AddedBadge>
+                      </div>
+                    )}
+                    {roleDiff.removedKeyids.length > 0 && (
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <RemovedBadge>Keys Removed</RemovedBadge>
+                      </div>
+                    )}
+                    {!roleDiff.oldThreshold && roleDiff.newThreshold && (
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <AddedBadge>Role Added</AddedBadge>
+                      </div>
+                    )}
+                    {roleDiff.oldThreshold && !roleDiff.newThreshold && (
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <RemovedBadge>Role Removed</RemovedBadge>
+                      </div>
+                    )}
+                  </div>
                 </SideBySideCell>
                 <SideBySideCell>
-                  {/* Threshold changes */}
-                  {roleDiff.oldThreshold !== undefined && 
-                   roleDiff.newThreshold !== undefined && 
-                   roleDiff.oldThreshold !== roleDiff.newThreshold && (
-                    <div>
-                      <ChangedBadge>Threshold Change</ChangedBadge> {roleDiff.oldThreshold} → {roleDiff.newThreshold}
-                      {roleDiff.oldThreshold < roleDiff.newThreshold ? (
-                        <div style={{ marginTop: '0.25rem' }}>Security increased: requires more signatures</div>
+                  {roleDiff.oldThreshold ? (
+                    <>
+                      <div>Threshold: <strong>{roleDiff.oldThreshold}</strong></div>
+                      <div style={{ marginTop: '0.5rem' }}><strong>Keys:</strong></div>
+                      {roleDiff.removedKeyids.length > 0 ? (
+                        <ul style={{ margin: '0.25rem 0 0 1.25rem' }}>
+                          {roleDiff.removedKeyids.map(keyId => (
+                            <li key={keyId}>
+                              <KeyId>{truncateKeyId(keyId)}</KeyId>
+                            </li>
+                          ))}
+                        </ul>
                       ) : (
-                        <div style={{ marginTop: '0.25rem' }}>Security reduced: requires fewer signatures</div>
+                        <div>No removed keys</div>
                       )}
-                    </div>
+                    </>
+                  ) : (
+                    <div>Role not present</div>
                   )}
-                  
-                  {/* Key changes summary */}
-                  {(roleDiff.addedKeyids.length > 0 || roleDiff.removedKeyids.length > 0) && (
-                    <div style={{ marginTop: '0.5rem' }}>
-                      <strong>Key Changes:</strong>
-                      
-                      {roleDiff.addedKeyids.length > 0 && (
+                </SideBySideCell>
+                <SideBySideCell>
+                  {roleDiff.newThreshold !== undefined ? (
+                    <>
+                      <div><strong>Threshold:</strong> {roleDiff.newThreshold}</div>
+                      {roleDiff.oldThreshold !== undefined && roleDiff.oldThreshold !== roleDiff.newThreshold && (
                         <div style={{ marginTop: '0.25rem' }}>
-                          <AddedBadge>Added</AddedBadge> {roleDiff.addedKeyids.length} key(s)
-                          
-                          {roleDiff.addedKeyids.length <= 5 && (
-                            <ul style={{ margin: '0.25rem 0 0 1rem' }}>
-                              {roleDiff.addedKeyids.map(keyId => (
-                                <li key={keyId}>
-                                  <KeyId>{truncateKeyId(keyId)}</KeyId>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <ChangedBadge>
+                            {roleDiff.oldThreshold < roleDiff.newThreshold ? 'Increased' : 'Decreased'} 
+                            from {roleDiff.oldThreshold}
+                          </ChangedBadge>
                         </div>
                       )}
-                      
-                      {roleDiff.removedKeyids.length > 0 && (
-                        <div style={{ marginTop: '0.25rem' }}>
-                          <RemovedBadge>Removed</RemovedBadge> {roleDiff.removedKeyids.length} key(s)
-                          
-                          {roleDiff.removedKeyids.length <= 5 && (
-                            <ul style={{ margin: '0.25rem 0 0 1rem' }}>
-                              {roleDiff.removedKeyids.map(keyId => (
-                                <li key={keyId}>
-                                  <KeyId>{truncateKeyId(keyId)}</KeyId>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
+                      <div style={{ marginTop: '0.5rem' }}><strong>Keys:</strong></div>
+                      {roleDiff.addedKeyids.length > 0 ? (
+                        <ul style={{ margin: '0.25rem 0 0 1.25rem' }}>
+                          {roleDiff.addedKeyids.map(keyId => (
+                            <li key={keyId}>
+                              <KeyId>{truncateKeyId(keyId)}</KeyId>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div>No added keys</div>
                       )}
-                    </div>
-                  )}
-                  
-                  {roleDiff.oldThreshold === roleDiff.newThreshold && 
-                   roleDiff.addedKeyids.length === 0 && 
-                   roleDiff.removedKeyids.length === 0 && (
-                    <div>No significant changes</div>
+                    </>
+                  ) : (
+                    <div>Role not present</div>
                   )}
                 </SideBySideCell>
               </tr>
@@ -722,42 +715,80 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
         </SideBySideTable>
       )}
       
-      {/* Signatures tab - detailed view with side-by-side comparison */}
+      {/* Signatures tab with side-by-side comparison */}
       {activeTab === 'signatures' && hasSignatureChanges && (
-        <SideBySideTable>
-          <thead>
-            <tr>
-              <SideBySideHeaderProperty>Key ID</SideBySideHeaderProperty>
-              <SideBySideHeader>Changes</SideBySideHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {diff.signatureDiffs.map(sigDiff => (
-              <tr key={sigDiff.keyid}>
-                <SideBySideCell>
-                  <KeyId>{truncateKeyId(sigDiff.keyid)}</KeyId>
-                  <div style={{ marginTop: '0.25rem' }}>
-                    Owner: {sigDiff.keyowner || 'Unknown'}
-                  </div>
-                </SideBySideCell>
-                <SideBySideCell>
-                  {sigDiff.oldSigned ? (
-                    <AddedBadge>Signed</AddedBadge>
-                  ) : (
-                    <RemovedBadge>Unsigned</RemovedBadge>
-                  )}
-                </SideBySideCell>
-                <SideBySideCell>
-                  {sigDiff.newSigned ? (
-                    <AddedBadge>Signed</AddedBadge>
-                  ) : (
-                    <RemovedBadge>Unsigned</RemovedBadge>
-                  )}
-                </SideBySideCell>
+        <DiffTableContainer>
+          {/* Display overall verification status */}
+          <DiffSummary style={{ marginBottom: '1.5rem' }}>
+            <DiffSummaryTitle>Signature Verification Status</DiffSummaryTitle>
+            <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <strong>Version {diff.oldVersion}:</strong>{' '}
+                {diff.oldSignatureStatus && 
+                  getVerificationStatus(
+                    diff.oldSignatureStatus.signed, 
+                    diff.oldSignatureStatus.required
+                  )
+                }
+              </div>
+              <div>
+                <strong>Version {diff.newVersion}:</strong>{' '}
+                {diff.newSignatureStatus && 
+                  getVerificationStatus(
+                    diff.newSignatureStatus.signed, 
+                    diff.newSignatureStatus.required
+                  )
+                }
+              </div>
+            </div>
+          </DiffSummary>
+          
+          <SideBySideTable>
+            <thead>
+              <tr>
+                <SideBySideHeaderProperty>Key ID</SideBySideHeaderProperty>
+                <SideBySideHeader>Version {diff.oldVersion}</SideBySideHeader>
+                <SideBySideHeader>Version {diff.newVersion}</SideBySideHeader>
               </tr>
-            ))}
-          </tbody>
-        </SideBySideTable>
+            </thead>
+            <tbody>
+              {diff.signatureDiffs.map(sigDiff => (
+                <tr key={sigDiff.keyid}>
+                  <SideBySideCell>
+                    <KeyId>{truncateKeyId(sigDiff.keyid)}</KeyId>
+                    <div style={{ marginTop: '0.25rem' }}>
+                      {!sigDiff.oldSigned && sigDiff.newSigned && <AddedBadge>Added</AddedBadge>}
+                      {sigDiff.oldSigned && !sigDiff.newSigned && <RemovedBadge>Removed</RemovedBadge>}
+                      {sigDiff.oldSigned !== sigDiff.newSigned && <ChangedBadge>Changed</ChangedBadge>}
+                    </div>
+                  </SideBySideCell>
+                  <SideBySideCell>
+                    {sigDiff.oldSigned ? (
+                      <div>
+                        <VerifiedBadge>Signed</VerifiedBadge>
+                      </div>
+                    ) : (
+                      <div>
+                        <UnverifiedBadge>Unsigned</UnverifiedBadge>
+                      </div>
+                    )}
+                  </SideBySideCell>
+                  <SideBySideCell>
+                    {sigDiff.newSigned ? (
+                      <div>
+                        <VerifiedBadge>Signed</VerifiedBadge>
+                      </div>
+                    ) : (
+                      <div>
+                        <UnverifiedBadge>Unsigned</UnverifiedBadge>
+                      </div>
+                    )}
+                  </SideBySideCell>
+                </tr>
+              ))}
+            </tbody>
+          </SideBySideTable>
+        </DiffTableContainer>
       )}
     </DiffTableContainer>
   );

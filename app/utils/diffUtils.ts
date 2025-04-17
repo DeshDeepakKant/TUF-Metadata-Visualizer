@@ -198,6 +198,19 @@ export function compareRootMetadata(
         }
     });
     
+    // Add signature verification status
+    const oldSignatureStatus = {
+        signed: oldSignedKeyIds.size,
+        total: oldSignatures.length,
+        required: oldRoot.roles.root?.threshold || 1
+    };
+    
+    const newSignatureStatus = {
+        signed: newSignedKeyIds.size,
+        total: newSignatures.length, 
+        required: newRoot.roles.root?.threshold || 1
+    };
+    
     return {
         oldVersion,
         newVersion,
@@ -205,6 +218,8 @@ export function compareRootMetadata(
         newExpires,
         keyDiffs,
         roleDiffs,
-        signatureDiffs
+        signatureDiffs,
+        oldSignatureStatus,
+        newSignatureStatus
     };
 } 
