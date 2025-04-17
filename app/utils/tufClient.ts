@@ -322,53 +322,6 @@ export class TufRepository {
         
         return keysObj;
     }
-
-    // Get canonical JSON representation of signed data
-    // This is useful for signature verification
-    getCanonicalJSON(data: any): string {
-        // In a real implementation, we would use a canonical JSON library like
-        // the one from tuf-js. For this example, we'll use a simple approach.
-        
-        // Sort keys alphabetically and remove whitespace
-        return JSON.stringify(data, (key, value) => {
-            // Handle special cases like Maps
-            if (value instanceof Map) {
-                return Object.fromEntries(value);
-            }
-            return value;
-        }, 0);
-    }
-    
-    // Get the canonical JSON representation of a role's signed data
-    getSignedBytes(roleName: string): string | null {
-        let signed: any = null;
-        
-        switch (roleName) {
-            case 'root':
-                signed = this.rootMetadata?.signed;
-                break;
-            case 'timestamp':
-                signed = this.timestampMetadata?.signed;
-                break;
-            case 'snapshot':
-                signed = this.snapshotMetadata?.signed;
-                break;
-            case 'targets':
-                signed = this.targetsMetadata?.signed;
-                break;
-            default:
-                // Check if it's a delegated role
-                const delegated = this.delegatedTargetsMetadata.get(roleName);
-                signed = delegated?.signed || null;
-        }
-        
-        if (!signed) {
-            console.error(`Role ${roleName} not found for getting signed bytes`);
-            return null;
-        }
-        
-        return this.getCanonicalJSON(signed);
-    }
 }
 
 function formatExpirationDate(dateString: string): string {
