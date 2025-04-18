@@ -134,7 +134,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
     return (
         <TableContainer>
             <div style={{ marginBottom: '1rem', fontWeight: 500 }}>
-                TUF Specification Version: {specVersion}
             </div>
             <Table>
                 <thead>
