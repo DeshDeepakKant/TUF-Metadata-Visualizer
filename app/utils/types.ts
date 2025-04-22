@@ -44,6 +44,7 @@ export interface TufRootMetadata {
     };
     spec_version: string;
     version: number;
+    specification_version?: string;
 }
 
 export interface TufTimestampMetadata {
@@ -109,15 +110,80 @@ export interface TufSignedMetadata<T> {
 }
 
 export interface RoleInfo {
-    role: string;
-    signingStarts?: string;
+    name: string;
+    type: string;
+    version: number;
     expires: string;
-    signers: {
+    signatures: number;
+    keyIds: string[];
+    threshold: number;
+    specVersion: string;
+    originalExpires: string;
+    
+    role?: string;
+    signingStarts?: string;
+    signers?: {
         required: number;
         total: number;
         keyids: string[];
     };
-    jsonLink: string;
-    version?: number;
-    specVersion?: string;
+    jsonLink?: string;
+}
+
+/**
+ * Interface for repository source configuration
+ */
+export interface RepositorySource {
+    type: 'local' | 'remote';
+    url: string;
+    corsProxyUrl?: string;
+}
+
+/**
+ * Interface for root diff comparison
+ */
+export interface RootDiff {
+    oldVersion: number;
+    newVersion: number;
+    oldExpires: string;
+    newExpires: string;
+    keyDiffs: KeyDiff[];
+    roleDiffs: RoleDiff[];
+    signatureDiffs: SignatureDiff[];
+}
+
+/**
+ * Interface for key changes in root diff
+ */
+export interface KeyDiff {
+    keyId: string;
+    type: 'added' | 'removed' | 'modified';
+    oldKey?: any;
+    newKey?: any;
+}
+
+/**
+ * Interface for role changes in root diff
+ */
+export interface RoleDiff {
+    roleName: string;
+    type: 'added' | 'removed' | 'modified';
+    changes: {
+        keyids?: {
+            added: string[];
+            removed: string[];
+        };
+        threshold?: {
+            old: number;
+            new: number;
+        };
+    };
+}
+
+/**
+ * Interface for signature changes in root diff
+ */
+export interface SignatureDiff {
+    keyId: string;
+    type: 'added' | 'removed' | 'modified';
 } 
