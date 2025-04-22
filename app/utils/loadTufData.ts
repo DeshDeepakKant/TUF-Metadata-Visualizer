@@ -1,18 +1,34 @@
 'use server';
 
 import { createTufRepository } from './tufClient';
+import { createRemoteTufRepository } from './remoteRepository';
 import { RoleInfo } from './types';
 
-export async function loadTufData(): Promise<{
+interface LoadTufDataOptions {
+    repositoryUrl?: string;
+}
+
+export async function loadTufData(options: LoadTufDataOptions = {}): Promise<{
     roles: RoleInfo[],
     version: string,
     error: string | null
 }> {
     try {
         console.log('Starting to load TUF data...');
-
-        // Load TUF repository data
-        const repository = await createTufRepository();
+        const { repositoryUrl } = options;
+        
+        let repository;
+        
+        // If a repository URL is provided, try to load from that URL
+        if (repositoryUrl && repositoryUrl !== '/metadata/') {
+            console.log(`Loading from remote repository: ${repositoryUrl}`);
+            repository = await createRemoteTufRepository(repositoryUrl);
+        } else {
+            // Otherwise, load from local filesystem
+            console.log('Loading from local repository');
+            repository = await createTufRepository();
+        }
+        
         console.log('Repository created successfully');
 
         const roleInfo = repository.getRoleInfo();
@@ -24,7 +40,7 @@ export async function loadTufData(): Promise<{
             return {
                 roles: [],
                 version: "TUF-JS Viewer v0.1.0",
-                error: 'No TUF roles found. Make sure metadata files exist in the public/metadata directory.'
+                error: 'No TUF roles found. Make sure metadata files exist in the repository.'
             };
         }
 

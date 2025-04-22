@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
-import RepositorySelector from './RepositorySelector';
+import RepoSelector from './RepoSelector';
 import { RoleInfo } from '../utils/types';
-import { createRemoteTufRepository } from '../utils/remoteTufClient';
+import { loadTufData } from '../utils/loadTufData';
 
 interface TufViewerClientProps {
     roles: RoleInfo[];
@@ -13,142 +13,96 @@ interface TufViewerClientProps {
     error: string | null;
 }
 
-export default function TufViewerClient({ roles: initialRoles, version, error: initialError }: TufViewerClientProps) {
+export default function TufViewerClient({ roles: initialRoles, version: initialVersion, error: initialError }: TufViewerClientProps) {
     const [roles, setRoles] = useState<RoleInfo[]>(initialRoles);
+    const [version, setVersion] = useState<string>(initialVersion);
     const [error, setError] = useState<string | null>(initialError);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [repoSource, setRepoSource] = useState<string>('local');
-    const [remoteUrl, setRemoteUrl] = useState<string>('');
-
-    /**
-     * Load data from a remote TUF repository
-     */
-    const loadRemoteRepository = async (url: string) => {
-        setIsLoading(true);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [repositoryUrl, setRepositoryUrl] = useState<string>('');
+    
+    const handleRepositorySelect = async (url: string) => {
+        setLoading(true);
         setError(null);
         
         try {
-            // Use our CORS proxy for remote repositories
-            const corsProxyUrl = '/api/cors-proxy?url=';
+            // Call the server action to load data from the selected repository
+            const result = await loadTufData({ repositoryUrl: url });
             
-            // Create and initialize the remote repository
-            const repository = await createRemoteTufRepository(url, corsProxyUrl);
-            
-            // Get role info from the repository
-            const roleInfo = repository.getRoleInfo();
-            
-            if (roleInfo.length === 0) {
-                setError('No roles found in the remote repository.');
+            if (result.error) {
+                setError(result.error);
                 setRoles([]);
             } else {
-                setRoles(roleInfo);
-                setRepoSource('remote');
-                setRemoteUrl(url);
+                setRoles(result.roles);
+                setVersion(result.version);
+                setRepositoryUrl(url);
             }
-        } catch (error) {
-            console.error('Error loading remote repository:', error);
-            setError(`Failed to load remote repository: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } catch (err: any) {
+            setError(`Failed to load repository: ${err.message || 'Unknown error'}`);
             setRoles([]);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
-
-    /**
-     * Handle when a remote repository is selected
-     */
-    const handleRepositorySelected = (url: string) => {
-        loadRemoteRepository(url);
-    };
-
-    /**
-     * Switch back to the local repository
-     */
-    const switchToLocalRepository = () => {
-        setRoles(initialRoles);
-        setError(initialError);
-        setRepoSource('local');
-        setRemoteUrl('');
-    };
-
+    
+    // Show repository selector if:
+    // - There's an error
+    // - OR user explicitly selects a repository
+    // - OR user navigates directly to the page
+    const showRepoSelector = error !== null || repositoryUrl !== '' || initialRoles.length === 0;
+    
     if (error) {
         return (
-            <div className="space-y-4">
-                <div className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4">Loading TUF Repository Data</h2>
-                    <p className="text-red-600 mb-4">{error}</p>
-                    <p className="mb-2">Please check:</p>
-                    <ul className="list-disc pl-6 mb-4">
-                        <li>TUF metadata files exist in the specified location</li>
-                        <li>The files contain valid JSON in the TUF format</li>
-                        <li>The browser console for any network or JavaScript errors</li>
-                    </ul>
-                    
-                    {repoSource === 'remote' && (
-                        <button 
-                            onClick={switchToLocalRepository}
-                            className="mr-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
-                        >
-                            Switch to Local Repository
-                        </button>
-                    )}
-                    
-                    <button 
-                        onClick={() => window.location.reload()} 
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                    >
-                        Retry Loading
-                    </button>
+            <div className="container mx-auto p-4">
+                <h2 className="text-2xl font-bold mb-4">TUF Repository Error</h2>
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-6 rounded-md">
+                    {error}
                 </div>
                 
-                <RepositorySelector 
-                    onRepositorySelected={handleRepositorySelected}
-                    isLoading={isLoading}
-                />
+                <h3 className="text-lg font-semibold mb-2">Select a different repository:</h3>
+                <RepoSelector onSelectRepository={handleRepositorySelect} loading={loading} />
             </div>
         );
     }
-
+    
     // Get spec_version from the first role (assuming it's the same for all)
     const specVersion = roles[0]?.specVersion;
 
     return (
-        <div className="space-y-4">
-            {repoSource === 'remote' && remoteUrl && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <p className="font-medium text-blue-800">Remote Repository</p>
-                            <p className="text-sm text-blue-600 truncate">{remoteUrl}</p>
+        <div className="container mx-auto p-4">
+            {showRepoSelector && (
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold mb-4">TUF Repository Selection</h2>
+                    <RepoSelector onSelectRepository={handleRepositorySelect} loading={loading} />
+                </div>
+            )}
+            
+            {roles.length > 0 && (
+                <div className="space-y-4">
+                    {repositoryUrl && (
+                        <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md">
+                            Currently viewing: <strong>{repositoryUrl}</strong>
+                            <button 
+                                className="ml-4 text-blue-600 underline hover:text-blue-800"
+                                onClick={() => handleRepositorySelect(repositoryUrl)}
+                            >
+                                Change Repository
+                            </button>
                         </div>
-                        <button
-                            onClick={switchToLocalRepository}
-                            className="px-3 py-1 bg-white hover:bg-gray-100 text-blue-700 text-sm rounded-md border border-blue-300 transition-colors"
-                        >
-                            Switch to Local
-                        </button>
-                    </div>
+                    )}
+                    
+                    {specVersion && (
+                        <div className="text-sm text-gray-600">
+                            TUF Specification Version: {specVersion}
+                        </div>
+                    )}
+                    
+                    <RoleTable roles={roles} />
+                    
+                    <RepoInfo
+                        lastUpdated={new Date().toUTCString()}
+                        toolVersion={version}
+                    />
                 </div>
-            )}
-            
-            {specVersion && (
-                <div className="text-sm text-gray-600">
-                    TUF Specification Version: {specVersion}
-                </div>
-            )}
-            
-            <RoleTable roles={roles} />
-            
-            <RepoInfo
-                lastUpdated={new Date().toUTCString()}
-                toolVersion={version}
-            />
-            
-            {repoSource === 'local' && (
-                <RepositorySelector 
-                    onRepositorySelected={handleRepositorySelected}
-                    isLoading={isLoading}
-                />
             )}
         </div>
     );

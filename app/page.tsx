@@ -1,7 +1,4 @@
 import React from 'react';
-import { notFound } from 'next/navigation';
-import RoleTable from './components/RoleTable';
-import RepoInfo from './components/RepoInfo';
 import { loadTufData } from './utils/loadTufData';
 import TufViewerClient from './components/TufViewerClient';
 
@@ -10,16 +7,17 @@ export default async function Home() {
         // Load TUF data using the server action
         const { roles, version, error } = await loadTufData();
 
-        // If there's an error, show the custom not-found page
-        if (error) {
-            console.error('Error loading TUF data:', error);
-            notFound();
-        }
-
-        // Render the client component with the data
-        return <TufViewerClient roles={roles} version={version} error={null} />;
-    } catch (err) {
+        // Render the client component with the data, even if there's an error
+        // The client component will handle the error state
+        return <TufViewerClient roles={roles} version={version} error={error} />;
+    } catch (err: any) {
         console.error('Unexpected error in Home page:', err);
-        notFound();
+        return (
+            <TufViewerClient 
+                roles={[]} 
+                version="TUF-JS Viewer v0.1.0" 
+                error={`Unexpected error: ${err?.message || 'Unknown error'}`} 
+            />
+        );
     }
 } 

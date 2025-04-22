@@ -187,15 +187,22 @@ export class RemoteTufRepository {
 
     // Root role
     if (this.rootMetadata) {
+      const rootRole = root.roles['root'];
       roles.push({
+        name: 'root',
         role: 'root',
-        specVersion: root.specVersion,
+        type: 'root',
         version: root.version,
         expires: formatExpirationDate(root.expires),
+        originalExpires: root.expires,
+        signatures: Object.keys(this.rootMetadata.signatures || {}).length,
+        keyIds: rootRole.keyIDs,
+        threshold: rootRole.threshold,
+        specVersion: root.specVersion,
         signers: {
-          required: root.roles['root'].threshold,
-          total: root.roles['root'].keyIDs.length,
-          keyids: transformKeyIds(root.roles['root'].keyIDs),
+          required: rootRole.threshold,
+          total: rootRole.keyIDs.length,
+          keyids: transformKeyIds(rootRole.keyIDs),
         },
         jsonLink: `${this.baseUrl}root.json`,
       });
@@ -206,8 +213,16 @@ export class RemoteTufRepository {
       const timestampRole = root.roles['timestamp'];
       if (timestampRole) {
         roles.push({
+          name: 'timestamp',
           role: 'timestamp',
+          type: 'timestamp',
+          version: this.timestampMetadata.signed.version,
           expires: formatExpirationDate(this.timestampMetadata.signed.expires),
+          originalExpires: this.timestampMetadata.signed.expires,
+          signatures: Object.keys(this.timestampMetadata.signatures || {}).length,
+          keyIds: timestampRole.keyIDs,
+          threshold: timestampRole.threshold,
+          specVersion: this.timestampMetadata.signed.specVersion,
           signers: {
             required: timestampRole.threshold,
             total: timestampRole.keyIDs.length,
@@ -223,8 +238,16 @@ export class RemoteTufRepository {
       const snapshotRole = root.roles['snapshot'];
       if (snapshotRole) {
         roles.push({
+          name: 'snapshot',
           role: 'snapshot',
+          type: 'snapshot',
+          version: this.snapshotMetadata.signed.version,
           expires: formatExpirationDate(this.snapshotMetadata.signed.expires),
+          originalExpires: this.snapshotMetadata.signed.expires,
+          signatures: Object.keys(this.snapshotMetadata.signatures || {}).length,
+          keyIds: snapshotRole.keyIDs,
+          threshold: snapshotRole.threshold,
+          specVersion: this.snapshotMetadata.signed.specVersion,
           signers: {
             required: snapshotRole.threshold,
             total: snapshotRole.keyIDs.length,
@@ -240,8 +263,16 @@ export class RemoteTufRepository {
       const targetsRole = root.roles['targets'];
       if (targetsRole) {
         roles.push({
+          name: 'targets',
           role: 'targets',
+          type: 'targets',
+          version: this.targetsMetadata.signed.version,
           expires: formatExpirationDate(this.targetsMetadata.signed.expires),
+          originalExpires: this.targetsMetadata.signed.expires,
+          signatures: Object.keys(this.targetsMetadata.signatures || {}).length,
+          keyIds: targetsRole.keyIDs,
+          threshold: targetsRole.threshold,
+          specVersion: this.targetsMetadata.signed.specVersion,
           signers: {
             required: targetsRole.threshold,
             total: targetsRole.keyIDs.length,
@@ -261,8 +292,16 @@ export class RemoteTufRepository {
         
         if (delegatedMetadata) {
           roles.push({
+            name: roleName,
             role: roleName,
+            type: 'targets',
+            version: delegatedMetadata.signed.version,
             expires: formatExpirationDate(delegatedMetadata.signed.expires),
+            originalExpires: delegatedMetadata.signed.expires,
+            signatures: Object.keys(delegatedMetadata.signatures || {}).length,
+            keyIds: role.keyIDs,
+            threshold: role.threshold,
+            specVersion: delegatedMetadata.signed.specVersion,
             signers: {
               required: role.threshold,
               total: role.keyIDs.length,

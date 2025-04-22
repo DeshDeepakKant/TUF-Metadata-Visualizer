@@ -105,7 +105,7 @@ export default function RepoSelector({ onSelectRepository, loading = false }: Re
                 className="w-full p-2 border rounded-md"
                 placeholder="https://example.com/tuf/"
                 value={customUrl}
-                onChange={(e) => setCustomUrl(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomUrl(e.target.value)}
                 disabled={loading}
               />
               <p className="text-xs text-gray-500">
