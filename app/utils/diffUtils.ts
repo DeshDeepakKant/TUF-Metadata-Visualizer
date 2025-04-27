@@ -1,5 +1,5 @@
 import { RootDiff, KeyDiff, RoleDiff, SignatureDiff, TufRootMetadata, TufKey, TufRole } from './types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInMonths, differenceInYears, differenceInDays } from 'date-fns';
 
 /**
  * Formats a date string for display
@@ -10,6 +10,44 @@ export function formatExpirationDate(dateString: string): string {
         return format(date, "MMM d, yyyy HH:mm 'UTC'");
     } catch (e) {
         return dateString;
+    }
+}
+
+/**
+ * Formats the timespan until expiry in human-readable format
+ */
+export function formatExpiryTimespan(expiryDate: string): string {
+    try {
+        const expiry = parseISO(expiryDate);
+        const now = new Date();
+        
+        if (expiry < now) {
+            return `expired on ${format(expiry, "MMM d, yyyy")}`;
+        }
+        
+        const years = differenceInYears(expiry, now);
+        const remainingMonths = differenceInMonths(expiry, now) % 12;
+        const days = differenceInDays(expiry, now) % 30;
+        
+        let timespan = '';
+        
+        if (years > 0) {
+            timespan += `${years} year${years !== 1 ? 's' : ''}`;
+            if (remainingMonths > 0) {
+                timespan += ` and ${remainingMonths} month${remainingMonths !== 1 ? 's' : ''}`;
+            }
+        } else if (remainingMonths > 0) {
+            timespan += `${remainingMonths} month${remainingMonths !== 1 ? 's' : ''}`;
+            if (days > 0) {
+                timespan += ` and ${days} day${days !== 1 ? 's' : ''}`;
+            }
+        } else {
+            timespan += `${days} day${days !== 1 ? 's' : ''}`;
+        }
+        
+        return `expires in ${timespan} (${format(expiry, "MMM d, yyyy")})`;
+    } catch (e) {
+        return `expires on ${expiryDate}`;
     }
 }
 
@@ -36,6 +74,14 @@ export function getKeyOwner(key: any): string | undefined {
         }
     }
     return undefined;
+}
+
+/**
+ * Checks if two root versions are consecutive (N and N+1)
+ * According to the TUF spec, valid updates must be from version N to N+1
+ */
+export function areVersionsConsecutive(oldVersion: number, newVersion: number): boolean {
+    return newVersion === oldVersion + 1;
 }
 
 /**

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
 import RootVersionSelector from './RootVersionSelector';

@@ -2,35 +2,68 @@
 
 import React, { useState, useMemo } from 'react';
 import { RootDiff, KeyDiff, RoleDiff, SignatureDiff } from '../utils/types';
-import { truncateKeyId, formatExpirationDate } from '../utils/diffUtils';
+import { truncateKeyId, formatExpirationDate, formatExpiryTimespan, areVersionsConsecutive } from '../utils/diffUtils';
 import {
   DiffTableContainer,
   DiffTitle,
   DiffSelector,
   DiffSelectButton,
-  DiffTable,
-  DiffTableHeader,
-  DiffTableRow,
-  DiffTableCell,
-  SideBySideContainer,
-  SideBySideTable,
-  SideBySideHeader,
-  SideBySideHeaderProperty,
-  SideBySideCell,
-  ComparisonSection,
-  ComparisonTitle,
-  AddedBadge,
-  RemovedBadge,
-  ChangedBadge,
   KeyId,
-  VerifiedBadge,
-  UnverifiedBadge,
   DiffSummary,
   DiffSummaryTitle,
   DiffSummaryItem,
   DiffSummaryLabel,
-  EmptyState
+  EmptyState,
+  ChangedBadge,
+  AddedBadge,
+  RemovedBadge,
+  ComparisonSection,
+  ComparisonTitle,
+  VerifiedBadge,
+  UnverifiedBadge
 } from './RootDiff/styles';
+import styled from 'styled-components';
+
+// Additional styled components for the new UI
+const ListContainer = styled.div`
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--background-subtle);
+  border-radius: 4px;
+`;
+
+const ChangeList = styled.ul`
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+`;
+
+const ChangeItem = styled.li`
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background-color: var(--background);
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+`;
+
+const RoleNameBadge = styled.span`
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  background-color: var(--info-light);
+  color: var(--info);
+  border-radius: 4px;
+`;
+
+const WarningMessage = styled.div`
+  padding: 0.75rem;
+  margin: 1rem 0;
+  background-color: var(--warning-light);
+  color: var(--warning);
+  border-radius: 4px;
+  font-weight: 500;
+`;
 
 interface RootDiffTableProps {
   diff: RootDiff | null;
@@ -52,41 +85,9 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
   const keysCount = useMemo(() => hasKeyChanges ? (diff?.keyDiffs?.length ?? 0) : 0, [hasKeyChanges, diff]);
   const rolesCount = useMemo(() => hasRoleChanges ? (diff?.roleDiffs?.length ?? 0) : 0, [hasRoleChanges, diff]);
   const signaturesCount = useMemo(() => hasSignatureChanges ? (diff?.signatureDiffs?.length ?? 0) : 0, [hasSignatureChanges, diff]);
-
-  // Calculate time difference for expiry
-  const formatExpiryDifference = useMemo(() => {
-    if (!diff) return '';
-    
-    const oldDate = new Date(diff.oldExpires);
-    const newDate = new Date(diff.newExpires);
-    
-    // Calculate difference in months
-    const diffMs = newDate.getTime() - new Date().getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const years = Math.floor(diffDays / 365);
-    const months = Math.floor((diffDays % 365) / 30);
-    
-    let expiryText = 'expires in ';
-    if (years > 0) {
-      expiryText += `${years} year${years !== 1 ? 's' : ''}`;
-      if (months > 0) {
-        expiryText += ` and ${months} month${months !== 1 ? 's' : ''}`;
-      }
-    } else if (months > 0) {
-      expiryText += `${months} month${months !== 1 ? 's' : ''}`;
-    } else {
-      expiryText += `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
-    }
-    
-    expiryText += ` (${formatExpirationDate(diff.newExpires)})`;
-    return expiryText;
-  }, [diff]);
-
-  // Check if version jump is more than 1 (warning case)
-  const hasVersionJumpWarning = useMemo(() => {
-    if (!diff) return false;
-    return Math.abs(diff.newVersion - diff.oldVersion) > 1;
-  }, [diff]);
+  
+  // Check if versions are consecutive
+  const areConsecutive = useMemo(() => diff ? areVersionsConsecutive(diff.oldVersion, diff.newVersion) : true, [diff]);
 
   if (loading) {
     return (
@@ -108,34 +109,20 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
     );
   }
 
-  // Group key diffs by status
-  const addedKeys = diff.keyDiffs.filter(key => key.status === 'added');
-  const removedKeys = diff.keyDiffs.filter(key => key.status === 'removed');
-  const changedKeys = diff.keyDiffs.filter(key => key.status === 'changed');
-
-  // Group signatures by change type
-  const addedSignatures = diff.signatureDiffs.filter(sig => !sig.oldSigned && sig.newSigned);
-  const removedSignatures = diff.signatureDiffs.filter(sig => sig.oldSigned && !sig.newSigned);
-
   return (
     <DiffTableContainer>
       <DiffTitle>Root Metadata Diff (v{diff.oldVersion} → v{diff.newVersion})</DiffTitle>
       
+      {/* Warning for non-consecutive versions */}
+      {!areConsecutive && (
+        <WarningMessage>
+          Warning: Root versions are not consecutive. According to the TUF specification, valid updates must be from version N to N+1.
+        </WarningMessage>
+      )}
+      
       {/* Summary information */}
       <DiffSummary>
         <DiffSummaryTitle>Root Metadata Changes</DiffSummaryTitle>
-        {hasVersionJumpWarning && (
-          <div style={{ 
-            padding: '0.75rem', 
-            backgroundColor: '#fff3cd', 
-            color: '#856404', 
-            borderRadius: '4px',
-            marginBottom: '1rem',
-            fontSize: '0.9rem'
-          }}>
-            <strong>Warning:</strong> Version jump greater than 1 detected. This would not be a valid metadata update in a TUF client.
-          </div>
-        )}
         <DiffSummaryItem>
           <DiffSummaryLabel>Version:</DiffSummaryLabel>
           <span>
@@ -146,12 +133,10 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
         <DiffSummaryItem>
           <DiffSummaryLabel>Expiry:</DiffSummaryLabel>
           <span>
-            {formatExpiryDifference}
-            {hasExpiryChange && (
-              <ChangedBadge style={{ marginLeft: '0.5rem' }}>
-                {new Date(diff.oldExpires) < new Date(diff.newExpires) ? 'Extended' : 'Reduced'}
-              </ChangedBadge>
-            )}
+            {formatExpiryTimespan(diff.newExpires)}
+            {hasExpiryChange && <ChangedBadge style={{ marginLeft: '0.5rem' }}>
+              {new Date(diff.oldExpires) < new Date(diff.newExpires) ? 'Extended' : 'Reduced'}
+            </ChangedBadge>}
           </span>
         </DiffSummaryItem>
         <DiffSummaryItem>
@@ -197,249 +182,307 @@ export default function RootDiffTable({ diff, loading = false }: RootDiffTablePr
         </EmptyState>
       )}
       
-      {/* Overview tab with simplified enumeration of changes */}
+      {/* Summary tab - Concise overview of all changes */}
       {activeTab === 'summary' && (
-        <div>
-          {/* No more Version Information table as it's redundant */}
-          
-          {/* Key changes if any */}
+        <>
+          {/* Key changes list */}
           {hasKeyChanges && (
             <ComparisonSection>
               <ComparisonTitle>Key Changes</ComparisonTitle>
-              <ul style={{ padding: '0', margin: '0', listStyle: 'none' }}>
-                {addedKeys.length > 0 && (
-                  <>
-                    <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Added keys:</li>
-                    {addedKeys.map(key => (
-                      <li key={`added-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                        <KeyId>{truncateKeyId(key.keyid)}</KeyId> 
-                        {key.keytype && <span style={{ marginLeft: '0.5rem', color: '#666' }}>{key.keytype}</span>}
-                        {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                      </li>
-                    ))}
-                  </>
-                )}
-                
-                {removedKeys.length > 0 && (
-                  <>
-                    <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Removed keys:</li>
-                    {removedKeys.map(key => (
-                      <li key={`removed-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                        <KeyId>{truncateKeyId(key.keyid)}</KeyId>
-                        {key.oldKeytype && <span style={{ marginLeft: '0.5rem', color: '#666' }}>{key.oldKeytype}</span>}
-                        {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                      </li>
-                    ))}
-                  </>
-                )}
-                
-                {changedKeys.length > 0 && (
-                  <>
-                    <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Changed keys:</li>
-                    {changedKeys.map(key => (
-                      <li key={`changed-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                        <KeyId>{truncateKeyId(key.keyid)}</KeyId>
-                        {key.oldKeytype && key.keytype && key.oldKeytype !== key.keytype && (
-                          <span style={{ marginLeft: '0.5rem', color: '#666' }}>
-                            Type: {key.oldKeytype} → {key.keytype}
-                          </span>
+              <ListContainer>
+                <ChangeList>
+                  {diff.keyDiffs.map(keyDiff => (
+                    <ChangeItem key={keyDiff.keyid}>
+                      {keyDiff.status === 'added' && (
+                        <AddedBadge>Added</AddedBadge>
+                      )}
+                      {keyDiff.status === 'removed' && (
+                        <RemovedBadge>Removed</RemovedBadge>
+                      )}
+                      {keyDiff.status === 'changed' && (
+                        <ChangedBadge>Changed</ChangedBadge>
+                      )}
+                      <div>
+                        Key <KeyId>{truncateKeyId(keyDiff.keyid)}</KeyId>
+                        {keyDiff.keyowner && (
+                          <span style={{ marginLeft: '0.5rem' }}>({keyDiff.keyowner})</span>
                         )}
-                        {key.oldScheme && key.scheme && key.oldScheme !== key.scheme && (
-                          <span style={{ marginLeft: '0.5rem', color: '#666' }}>
-                            Scheme: {key.oldScheme} → {key.scheme}
-                          </span>
-                        )}
-                        {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                      </li>
-                    ))}
-                  </>
-                )}
-              </ul>
+                      </div>
+                    </ChangeItem>
+                  ))}
+                </ChangeList>
+              </ListContainer>
             </ComparisonSection>
           )}
 
-          {/* Role changes if any */}
+          {/* Role changes list */}
           {hasRoleChanges && (
             <ComparisonSection>
               <ComparisonTitle>Role Changes</ComparisonTitle>
-              {diff.roleDiffs.map(role => (
-                <div key={`role-${role.roleName}`} style={{ marginBottom: '1.5rem' }}>
-                  <h4 style={{ margin: '0.5rem 0', fontSize: '1.1rem' }}>{role.roleName}</h4>
-                  <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                    {role.oldThreshold !== undefined && role.newThreshold !== undefined && role.oldThreshold !== role.newThreshold && (
-                      <li style={{ margin: '0.25rem 0' }}>
-                        Threshold: {role.oldThreshold} → {role.newThreshold}
-                      </li>
-                    )}
-                    
-                    {role.addedKeyids.length > 0 && (
-                      <li style={{ margin: '0.25rem 0' }}>
-                        Added keys: {role.addedKeyids.map(keyid => truncateKeyId(keyid)).join(', ')}
-                      </li>
-                    )}
-                    
-                    {role.removedKeyids.length > 0 && (
-                      <li style={{ margin: '0.25rem 0' }}>
-                        Removed keys: {role.removedKeyids.map(keyid => truncateKeyId(keyid)).join(', ')}
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              ))}
+              <ListContainer>
+                <ChangeList>
+                  {diff.roleDiffs.map(roleDiff => (
+                    <ChangeItem key={roleDiff.roleName}>
+                      <RoleNameBadge>{roleDiff.roleName}</RoleNameBadge>
+                      <div style={{ flex: 1 }}>
+                        {/* Threshold changes */}
+                        {roleDiff.oldThreshold !== undefined && roleDiff.newThreshold !== undefined && 
+                          roleDiff.oldThreshold !== roleDiff.newThreshold && (
+                          <div>
+                            Threshold: {roleDiff.oldThreshold} → {roleDiff.newThreshold}
+                          </div>
+                        )}
+                        
+                        {/* Added role */}
+                        {roleDiff.oldThreshold === undefined && roleDiff.newThreshold !== undefined && (
+                          <div>
+                            Role added with threshold: {roleDiff.newThreshold}
+                          </div>
+                        )}
+                        
+                        {/* Removed role */}
+                        {roleDiff.oldThreshold !== undefined && roleDiff.newThreshold === undefined && (
+                          <div>
+                            Role removed (had threshold: {roleDiff.oldThreshold})
+                          </div>
+                        )}
+                        
+                        {/* Key changes */}
+                        {roleDiff.addedKeyids.length > 0 && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            Added keys: {roleDiff.addedKeyids.map(keyId => (
+                              <KeyId key={keyId} style={{ marginRight: '0.25rem' }}>
+                                {truncateKeyId(keyId)}
+                              </KeyId>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {roleDiff.removedKeyids.length > 0 && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            Removed keys: {roleDiff.removedKeyids.map(keyId => (
+                              <KeyId key={keyId} style={{ marginRight: '0.25rem' }}>
+                                {truncateKeyId(keyId)}
+                              </KeyId>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </ChangeItem>
+                  ))}
+                </ChangeList>
+              </ListContainer>
             </ComparisonSection>
           )}
 
-          {/* Signature changes if any */}
+          {/* Signature changes list */}
           {hasSignatureChanges && (
             <ComparisonSection>
               <ComparisonTitle>Signature Changes</ComparisonTitle>
-              {addedSignatures.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ margin: '0.5rem 0', fontSize: '1rem' }}>New signatures from keys:</h4>
-                  <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                    {addedSignatures.map(sig => (
-                      <li key={`added-sig-${sig.keyid}`} style={{ margin: '0.25rem 0' }}>
-                        <KeyId>{truncateKeyId(sig.keyid)}</KeyId>
-                        {sig.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({sig.keyowner})</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {removedSignatures.length > 0 && (
-                <div>
-                  <h4 style={{ margin: '0.5rem 0', fontSize: '1rem' }}>No more signatures from keys:</h4>
-                  <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                    {removedSignatures.map(sig => (
-                      <li key={`removed-sig-${sig.keyid}`} style={{ margin: '0.25rem 0' }}>
-                        <KeyId>{truncateKeyId(sig.keyid)}</KeyId>
-                        {sig.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({sig.keyowner})</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <ListContainer>
+                <ChangeList>
+                  {/* Group signatures by their change type */}
+                  {diff.signatureDiffs.some(sig => !sig.oldSigned && sig.newSigned) && (
+                    <ChangeItem>
+                      <AddedBadge>Added</AddedBadge>
+                      <div>
+                        New signatures from keys: {diff.signatureDiffs
+                          .filter(sig => !sig.oldSigned && sig.newSigned)
+                          .map(sig => (
+                            <KeyId key={sig.keyid} style={{ marginRight: '0.25rem' }}>
+                              {truncateKeyId(sig.keyid)}
+                              {sig.keyowner && ` (${sig.keyowner})`}
+                            </KeyId>
+                          ))}
+                      </div>
+                    </ChangeItem>
+                  )}
+                  
+                  {diff.signatureDiffs.some(sig => sig.oldSigned && !sig.newSigned) && (
+                    <ChangeItem>
+                      <RemovedBadge>Removed</RemovedBadge>
+                      <div>
+                        No more signatures from keys: {diff.signatureDiffs
+                          .filter(sig => sig.oldSigned && !sig.newSigned)
+                          .map(sig => (
+                            <KeyId key={sig.keyid} style={{ marginRight: '0.25rem' }}>
+                              {truncateKeyId(sig.keyid)}
+                              {sig.keyowner && ` (${sig.keyowner})`}
+                            </KeyId>
+                          ))}
+                      </div>
+                    </ChangeItem>
+                  )}
+                </ChangeList>
+              </ListContainer>
             </ComparisonSection>
           )}
-        </div>
+        </>
       )}
-      
-      {/* Keys tab - simplified view with list */}
+
+      {/* Keys tab - Detailed view */}
       {activeTab === 'keys' && hasKeyChanges && (
         <ComparisonSection>
-          <ul style={{ padding: '0', margin: '0', listStyle: 'none' }}>
-            {addedKeys.length > 0 && (
-              <>
-                <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Added keys:</li>
-                {addedKeys.map(key => (
-                  <li key={`added-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                    <KeyId>{truncateKeyId(key.keyid)}</KeyId> 
-                    {key.keytype && <span style={{ marginLeft: '0.5rem', color: '#666' }}>{key.keytype}</span>}
-                    {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                  </li>
-                ))}
-              </>
-            )}
-            
-            {removedKeys.length > 0 && (
-              <>
-                <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Removed keys:</li>
-                {removedKeys.map(key => (
-                  <li key={`removed-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                    <KeyId>{truncateKeyId(key.keyid)}</KeyId>
-                    {key.oldKeytype && <span style={{ marginLeft: '0.5rem', color: '#666' }}>{key.oldKeytype}</span>}
-                    {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                  </li>
-                ))}
-              </>
-            )}
-            
-            {changedKeys.length > 0 && (
-              <>
-                <li style={{ fontWeight: 'bold', marginTop: '0.75rem' }}>Changed keys:</li>
-                {changedKeys.map(key => (
-                  <li key={`changed-${key.keyid}`} style={{ margin: '0.5rem 0 0.5rem 1rem' }}>
-                    <KeyId>{truncateKeyId(key.keyid)}</KeyId>
-                    {key.oldKeytype && key.keytype && key.oldKeytype !== key.keytype && (
-                      <span style={{ marginLeft: '0.5rem', color: '#666' }}>
-                        Type: {key.oldKeytype} → {key.keytype}
-                      </span>
+          <ListContainer>
+            <ChangeList>
+              {diff.keyDiffs.map(keyDiff => (
+                <ChangeItem key={keyDiff.keyid}>
+                  {keyDiff.status === 'added' && (
+                    <AddedBadge>Added</AddedBadge>
+                  )}
+                  {keyDiff.status === 'removed' && (
+                    <RemovedBadge>Removed</RemovedBadge>
+                  )}
+                  {keyDiff.status === 'changed' && (
+                    <ChangedBadge>Changed</ChangedBadge>
+                  )}
+                  <div>
+                    <div>
+                      Key <KeyId>{truncateKeyId(keyDiff.keyid)}</KeyId>
+                      {keyDiff.keyowner && (
+                        <span style={{ marginLeft: '0.5rem' }}>({keyDiff.keyowner})</span>
+                      )}
+                    </div>
+                    
+                    {keyDiff.status === 'changed' && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        {keyDiff.oldKeytype !== keyDiff.keytype && (
+                          <div>
+                            Key type: {keyDiff.oldKeytype} → {keyDiff.keytype}
+                          </div>
+                        )}
+                        {keyDiff.oldScheme !== keyDiff.scheme && (
+                          <div>
+                            Scheme: {keyDiff.oldScheme} → {keyDiff.scheme}
+                          </div>
+                        )}
+                      </div>
                     )}
-                    {key.oldScheme && key.scheme && key.oldScheme !== key.scheme && (
-                      <span style={{ marginLeft: '0.5rem', color: '#666' }}>
-                        Scheme: {key.oldScheme} → {key.scheme}
-                      </span>
+                    
+                    {keyDiff.status === 'added' && keyDiff.keytype && keyDiff.scheme && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div>Type: {keyDiff.keytype}</div>
+                        <div>Scheme: {keyDiff.scheme}</div>
+                      </div>
                     )}
-                    {key.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({key.keyowner})</span>}
-                  </li>
-                ))}
-              </>
-            )}
-          </ul>
+                    
+                    {keyDiff.status === 'removed' && keyDiff.oldKeytype && keyDiff.oldScheme && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div>Type: {keyDiff.oldKeytype}</div>
+                        <div>Scheme: {keyDiff.oldScheme}</div>
+                      </div>
+                    )}
+                  </div>
+                </ChangeItem>
+              ))}
+            </ChangeList>
+          </ListContainer>
         </ComparisonSection>
       )}
       
-      {/* Roles tab - simplified view with list */}
+      {/* Roles tab - Detailed view */}
       {activeTab === 'roles' && hasRoleChanges && (
         <ComparisonSection>
-          {diff.roleDiffs.map(role => (
-            <div key={`role-${role.roleName}`} style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ margin: '0.5rem 0', fontSize: '1.1rem' }}>{role.roleName}</h4>
-              <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                {role.oldThreshold !== undefined && role.newThreshold !== undefined && role.oldThreshold !== role.newThreshold && (
-                  <li style={{ margin: '0.25rem 0' }}>
-                    Threshold: {role.oldThreshold} → {role.newThreshold}
-                  </li>
-                )}
-                
-                {role.addedKeyids.length > 0 && (
-                  <li style={{ margin: '0.25rem 0' }}>
-                    Added keys: {role.addedKeyids.map(keyid => truncateKeyId(keyid)).join(', ')}
-                  </li>
-                )}
-                
-                {role.removedKeyids.length > 0 && (
-                  <li style={{ margin: '0.25rem 0' }}>
-                    Removed keys: {role.removedKeyids.map(keyid => truncateKeyId(keyid)).join(', ')}
-                  </li>
-                )}
-              </ul>
-            </div>
-          ))}
+          <ListContainer>
+            <ChangeList>
+              {diff.roleDiffs.map(roleDiff => (
+                <ChangeItem key={roleDiff.roleName}>
+                  <RoleNameBadge>{roleDiff.roleName}</RoleNameBadge>
+                  <div style={{ flex: 1 }}>
+                    {/* Role status */}
+                    {!roleDiff.oldThreshold && roleDiff.newThreshold && (
+                      <div><AddedBadge>New Role</AddedBadge></div>
+                    )}
+                    
+                    {roleDiff.oldThreshold && !roleDiff.newThreshold && (
+                      <div><RemovedBadge>Removed Role</RemovedBadge></div>
+                    )}
+                    
+                    {/* Threshold changes */}
+                    {roleDiff.oldThreshold !== undefined && roleDiff.newThreshold !== undefined && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div>
+                          Threshold: {roleDiff.oldThreshold} → {roleDiff.newThreshold}
+                          {roleDiff.oldThreshold !== roleDiff.newThreshold && (
+                            <ChangedBadge style={{ marginLeft: '0.5rem' }}>
+                              {roleDiff.oldThreshold < roleDiff.newThreshold ? 'Increased' : 'Decreased'}
+                            </ChangedBadge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Added keys */}
+                    {roleDiff.addedKeyids.length > 0 && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div style={{ fontWeight: '500' }}>Added keys:</div>
+                        <ul style={{ marginTop: '0.25rem', paddingLeft: '1.5rem' }}>
+                          {roleDiff.addedKeyids.map(keyId => (
+                            <li key={keyId}>
+                              <KeyId>{truncateKeyId(keyId)}</KeyId>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Removed keys */}
+                    {roleDiff.removedKeyids.length > 0 && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div style={{ fontWeight: '500' }}>Removed keys:</div>
+                        <ul style={{ marginTop: '0.25rem', paddingLeft: '1.5rem' }}>
+                          {roleDiff.removedKeyids.map(keyId => (
+                            <li key={keyId}>
+                              <KeyId>{truncateKeyId(keyId)}</KeyId>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </ChangeItem>
+              ))}
+            </ChangeList>
+          </ListContainer>
         </ComparisonSection>
       )}
-      
-      {/* Signatures tab - simplified view with list */}
-      {activeTab === 'signatures' && hasSignatureChanges && diff?.signatureDiffs && (
+
+      {/* Signatures tab - Detailed view */}
+      {activeTab === 'signatures' && hasSignatureChanges && (
         <ComparisonSection>
-          {addedSignatures.length > 0 && (
-            <div style={{ marginBottom: '1rem' }}>
-              <h4 style={{ margin: '0.5rem 0', fontSize: '1rem' }}>New signatures from keys:</h4>
-              <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                {addedSignatures.map(sig => (
-                  <li key={`added-sig-${sig.keyid}`} style={{ margin: '0.25rem 0' }}>
-                    <KeyId>{truncateKeyId(sig.keyid)}</KeyId>
-                    {sig.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({sig.keyowner})</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          
-          {removedSignatures.length > 0 && (
-            <div>
-              <h4 style={{ margin: '0.5rem 0', fontSize: '1rem' }}>No more signatures from keys:</h4>
-              <ul style={{ padding: '0', margin: '0 0 0 1rem', listStyle: 'none' }}>
-                {removedSignatures.map(sig => (
-                  <li key={`removed-sig-${sig.keyid}`} style={{ margin: '0.25rem 0' }}>
-                    <KeyId>{truncateKeyId(sig.keyid)}</KeyId>
-                    {sig.keyowner && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({sig.keyowner})</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <ListContainer>
+            <ChangeList>
+              {diff.signatureDiffs.map(sigDiff => (
+                <ChangeItem key={sigDiff.keyid}>
+                  {!sigDiff.oldSigned && sigDiff.newSigned && (
+                    <AddedBadge>Added</AddedBadge>
+                  )}
+                  {sigDiff.oldSigned && !sigDiff.newSigned && (
+                    <RemovedBadge>Removed</RemovedBadge>
+                  )}
+                  <div>
+                    <KeyId>{truncateKeyId(sigDiff.keyid)}</KeyId>
+                    {sigDiff.keyowner && (
+                      <span style={{ marginLeft: '0.5rem' }}>({sigDiff.keyowner})</span>
+                    )}
+                    <div style={{ marginTop: '0.25rem' }}>
+                      {sigDiff.oldSigned ? (
+                        <VerifiedBadge style={{ marginRight: '0.5rem' }}>Previously signed</VerifiedBadge>
+                      ) : (
+                        <UnverifiedBadge style={{ marginRight: '0.5rem' }}>Previously unsigned</UnverifiedBadge>
+                      )}
+                      →
+                      {sigDiff.newSigned ? (
+                        <VerifiedBadge style={{ marginLeft: '0.5rem' }}>Now signed</VerifiedBadge>
+                      ) : (
+                        <UnverifiedBadge style={{ marginLeft: '0.5rem' }}>Now unsigned</UnverifiedBadge>
+                      )}
+                    </div>
+                  </div>
+                </ChangeItem>
+              ))}
+            </ChangeList>
+          </ListContainer>
         </ComparisonSection>
       )}
     </DiffTableContainer>

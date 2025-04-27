@@ -139,6 +139,19 @@ export default function RootVersionSelector({ remoteUrl }: RootVersionSelectorPr
       return;
     }
     
+    // Check if versions are consecutive
+    if (Math.abs(newVersion - oldVersion) !== 1) {
+      const proceed = window.confirm(
+        `Warning: You are comparing non-consecutive root versions (${oldVersion} and ${newVersion}). ` +
+        `According to the TUF specification, valid updates must be from version N to N+1. ` +
+        `Do you want to proceed anyway?`
+      );
+      
+      if (!proceed) {
+        return;
+      }
+    }
+    
     setLoading(true);
     setError(null);
     
