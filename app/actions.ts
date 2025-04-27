@@ -7,8 +7,8 @@ import { RootDiff } from './utils/types';
 /**
  * Get a list of available root versions
  */
-export async function getAvailableRootVersionsAction(): Promise<{ version: number }[]> {
-    const versions = await getAvailableRootVersions();
+export async function getAvailableRootVersionsAction(remoteUrl?: string): Promise<{ version: number }[]> {
+    const versions = await getAvailableRootVersions(remoteUrl);
     // Return only the version numbers for the client
     return versions.map(v => ({ version: v.version }));
 }
@@ -18,7 +18,8 @@ export async function getAvailableRootVersionsAction(): Promise<{ version: numbe
  */
 export async function compareRootVersionsAction(
     oldVersion: number, 
-    newVersion: number
+    newVersion: number,
+    remoteUrl?: string
 ): Promise<{ diff: RootDiff | null; error: string | null }> {
     try {
         // Validate input
@@ -35,8 +36,8 @@ export async function compareRootVersionsAction(
             : [newVersion, oldVersion];
         
         // Load the root files
-        const oldRoot = await loadRootByVersion(older);
-        const newRoot = await loadRootByVersion(newer);
+        const oldRoot = await loadRootByVersion(older, remoteUrl);
+        const newRoot = await loadRootByVersion(newer, remoteUrl);
         
         if (!oldRoot || !newRoot) {
             return { 
@@ -64,4 +65,17 @@ export async function compareRootVersionsAction(
             error: error instanceof Error ? error.message : String(error) 
         };
     }
+}
+
+/**
+ * Load TUF metadata from a remote URL
+ */
+export async function loadTufDataAction(remoteUrl?: string): Promise<{
+    roles: any[];
+    version: string;
+    error: string | null;
+}> {
+    // Forward to the loadTufData function
+    const { loadTufData } = require('./utils/loadTufData');
+    return await loadTufData(remoteUrl);
 } 

@@ -96,7 +96,11 @@ interface RootVersion {
   version: number;
 }
 
-export default function RootVersionSelector() {
+interface RootVersionSelectorProps {
+  remoteUrl?: string;
+}
+
+export default function RootVersionSelector({ remoteUrl }: RootVersionSelectorProps) {
   // State for available versions and selections
   const [versions, setVersions] = useState<RootVersion[]>([]);
   const [oldVersion, setOldVersion] = useState<number | null>(null);
@@ -105,11 +109,11 @@ export default function RootVersionSelector() {
   const [error, setError] = useState<string | null>(null);
   const [diff, setDiff] = useState<RootDiff | null>(null);
   
-  // Load available versions on mount
+  // Load available versions on mount or when remoteUrl changes
   useEffect(() => {
     async function loadVersions() {
       try {
-        const availableVersions = await getAvailableRootVersionsAction();
+        const availableVersions = await getAvailableRootVersionsAction(remoteUrl);
         setVersions(availableVersions);
         
         // Auto-select the latest two versions if available
@@ -126,7 +130,7 @@ export default function RootVersionSelector() {
     }
     
     loadVersions();
-  }, []);
+  }, [remoteUrl]);
   
   // Handle compare button click
   const handleCompare = async () => {
@@ -139,7 +143,7 @@ export default function RootVersionSelector() {
     setError(null);
     
     try {
-      const result = await compareRootVersionsAction(oldVersion, newVersion);
+      const result = await compareRootVersionsAction(oldVersion, newVersion, remoteUrl);
       
       if (result.error) {
         setError(result.error);
