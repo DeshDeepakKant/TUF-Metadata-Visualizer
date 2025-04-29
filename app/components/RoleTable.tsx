@@ -271,10 +271,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                                             <NestedTableCell>Terminating</NestedTableCell>
                                                             <NestedTableCell>{registryDelegation.terminating ? 'Yes' : 'No'}</NestedTableCell>
                                                         </NestedTableRow>
-                                                        <NestedTableRow>
-                                                            <NestedTableCell>Threshold</NestedTableCell>
-                                                            <NestedTableCell>{registryDelegation.threshold}</NestedTableCell>
-                                                        </NestedTableRow>
                                                     </tbody>
                                                 </NestedTable>
                                             )}
