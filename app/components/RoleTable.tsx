@@ -112,9 +112,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
         return <div>No roles found.</div>;
     }
 
-    // Get spec_version from the first role (assuming it's the same for all)
-    const specVersion = roles[0]?.specVersion || '-';
-
     // Find the targets role
     const targetsRole = roles.find(role => role.role === 'targets');
 
@@ -133,9 +130,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
 
     return (
         <TableContainer>
-            <div style={{ marginBottom: '1rem', fontWeight: 500 }}>
-                TUF Specification Version: {specVersion}
-            </div>
             <Table>
                 <thead>
                     <TableRow>
