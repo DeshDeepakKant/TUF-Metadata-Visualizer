@@ -54,13 +54,26 @@ const ExpandButton = styled.button<{ $expanded?: boolean }>`
   border: none;
   cursor: pointer;
   font-size: 0.75rem;
-  margin-right: 0.5rem;
   padding: 0.25rem;
+  color: var(--link);
   transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
   transition: transform 0.2s ease;
+  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 `;
 
+const RoleName = styled.div`
+  display: flex;
+  align-items: center;
+`;
 
+const ExpandableArea = styled.div`
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+`;
 
 interface RoleTableProps {
     roles: RoleInfo[];
@@ -145,15 +158,22 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <React.Fragment key={role.role}>
                             <TableRow>
                                 <TableCell>
-                                    {(role.role === 'targets' || role.role === 'registry.npmjs.org') && (
-                                        <ExpandButton
-                                            $expanded={expandedRow === role.role}
-                                            onClick={() => handleRowExpand(role.role)}
-                                        >
-                                            ▶
-                                        </ExpandButton>
-                                    )}
-                                    {role.role} (<Link href={role.jsonLink} target="_blank">json</Link>)
+                                    <RoleName>
+                                        {(role.role === 'targets' || role.role === 'registry.npmjs.org') ? (
+                                            <ExpandableArea onClick={() => handleRowExpand(role.role)}>
+                                                <ExpandButton $expanded={expandedRow === role.role}>
+                                                    ▶
+                                                </ExpandButton>
+                                                {role.role}
+                                            </ExpandableArea>
+                                        ) : (
+                                            <>
+                                                <div style={{ width: '20px' }}></div>
+                                                {role.role}
+                                            </>
+                                        )}
+                                        {' '}(<Link href={role.jsonLink} target="_blank">json</Link>)
+                                    </RoleName>
                                 </TableCell>
                                 <TableCell>{role.signingStarts || 'N/A'}</TableCell>
                                 <TableCell>{role.version || '-'}</TableCell>
