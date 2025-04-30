@@ -120,4 +120,25 @@ export interface RoleInfo {
     jsonLink: string;
     version?: number;
     specVersion?: string;
+    targets?: Record<string, {
+        hashes: Record<string, string>;
+        length: number;
+        custom?: any;
+    }>;
+    delegations?: {
+        keys: Record<string, {
+            keytype: string;
+            keyval: {
+                public: string;
+            };
+            scheme: string;
+        }>;
+        roles: Array<{
+            name: string;
+            keyids: string[];
+            threshold: number;
+            paths?: string[];
+            terminating?: boolean;
+        }>;
+    };
 } 
