@@ -1,3 +1,21 @@
+/**
+ * Types for TUF metadata representation
+ * 
+ * USAGE STATUS:
+ * - RoleInfo: USED DIRECTLY by TufRepository, RoleTable, and TufViewerClient components
+ * - TufKey: USED INDIRECTLY in TufTargetsMetadata and TufRootMetadata
+ * - TufRole: USED INDIRECTLY in TufRootMetadata
+ * - TufRootMetadata: UNUSED directly, but kept for reference to TUF specification
+ * - TufTimestampMetadata: UNUSED directly, but kept for reference to TUF specification
+ * - TufSnapshotMetadata: UNUSED directly, but kept for reference to TUF specification
+ * - TufTargetsMetadata: UNUSED directly, but kept for reference to TUF specification
+ * - TufSignedMetadata: UNUSED directly, but kept for reference to TUF specification
+ * 
+ * NOTE: These interfaces could be replaced with direct imports from @tufjs/models
+ * in the future, as those would be more up-to-date with the TUF specification.
+ * For now, we're keeping them for reference and potential future use.
+ */
+
 export interface TufKey {
     keyid_hash_algorithms: string[];
     keytype: string;

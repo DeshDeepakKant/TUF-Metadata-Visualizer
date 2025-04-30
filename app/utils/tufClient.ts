@@ -2,9 +2,9 @@
 
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 import { RoleInfo } from './types';
-import fs from 'fs';
-import path from 'path';
-import { format, parseISO } from 'date-fns';
+import { parseISO, format } from 'date-fns';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // For client-side requests (via fetch)
 const METADATA_BASE_URL = '/metadata';
@@ -440,16 +440,15 @@ export class TufRepository {
         if (!this.rootMetadata) {
             return {};
         }
-
-        // Convert the keys to a plain object for compatibility
+        
         const keysObj: Record<string, any> = {};
+        
         Object.entries(this.rootMetadata.signed.keys).forEach(([keyId, keyValue]) => {
             keysObj[keyId] = keyValue;
         });
 
         return keysObj;
     }
-
 }
 
 function formatExpirationDate(dateString: string): string {
