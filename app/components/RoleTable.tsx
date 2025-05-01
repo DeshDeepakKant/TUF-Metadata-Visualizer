@@ -112,14 +112,16 @@ export default function RoleTable({ roles }: RoleTableProps) {
         return <div>No roles found.</div>;
     }
 
-    // Get spec_version from the first role (assuming it's the same for all)
-    const specVersion = roles[0]?.specVersion || '-';
-
     // Find the targets role
     const targetsRole = roles.find(role => role.role === 'targets');
 
-    // Get delegations from targets role for registry.npmjs.org
-    const registryDelegation = targetsRole?.delegations?.roles?.find(role => role.name === 'registry.npmjs.org');
+    // Helper to determine if a role has expandable content (targets or delegations)
+    const hasExpandableContent = (role: RoleInfo): boolean => {
+        return !!(
+            (role.targets && Object.keys(role.targets).length > 0) || 
+            (role.delegations?.roles && role.delegations.roles.length > 0)
+        );
+    };
 
     const handleRowExpand = (roleName: string) => {
         if (expandedRow === roleName) {
@@ -129,12 +131,15 @@ export default function RoleTable({ roles }: RoleTableProps) {
         }
     };
 
-
+    // Find delegation info for a specific delegated role
+    const findDelegationInfo = (delegatedRoleName: string) => {
+        if (!targetsRole?.delegations?.roles) return null;
+        
+        return targetsRole.delegations.roles.find(role => role.name === delegatedRoleName);
+    };
 
     return (
         <TableContainer>
-            <div style={{ marginBottom: '1rem', fontWeight: 500 }}>
-            </div>
             <Table>
                 <thead>
                     <TableRow>
@@ -150,7 +155,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <React.Fragment key={role.role}>
                             <TableRow>
                                 <TableCell>
-                                    {(role.role === 'targets' || role.role === 'registry.npmjs.org') && (
+                                    {hasExpandableContent(role) && (
                                         <ExpandButton
                                             $expanded={expandedRow === role.role}
                                             onClick={() => handleRowExpand(role.role)}
@@ -202,40 +207,38 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                 </TableCell>
                             </TableRow>
 
-                            {/* Nested content for targets */}
-                            {role.role === 'targets' && expandedRow === 'targets' && (
+                            {/* Show targets content for any role with targets data when expanded */}
+                            {role.targets && Object.keys(role.targets).length > 0 && expandedRow === role.role && (
                                 <TableRow>
                                     <TableCell colSpan={5}>
                                         <NestedTableContainer>
-                                            {/* Targets content - only show paths directly */}
-                                            {targetsRole?.targets && (
-                                                <NestedTable>
-                                                    <thead>
-                                                        <NestedTableRow>
-                                                            <NestedTableHeader>Path</NestedTableHeader>
+                                            <NestedTable>
+                                                <thead>
+                                                    <NestedTableRow>
+                                                        <NestedTableHeader>Path</NestedTableHeader>
+                                                    </NestedTableRow>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.entries(role.targets).map(([path]) => (
+                                                        <NestedTableRow key={path}>
+                                                            <NestedTableCell>{path}</NestedTableCell>
                                                         </NestedTableRow>
-                                                    </thead>
-                                                    <tbody>
-                                                        {Object.entries(targetsRole.targets).map(([path]) => (
-                                                            <NestedTableRow key={path}>
-                                                                <NestedTableCell>{path}</NestedTableCell>
-                                                            </NestedTableRow>
-                                                        ))}
-                                                    </tbody>
-                                                </NestedTable>
-                                            )}
+                                                    ))}
+                                                </tbody>
+                                            </NestedTable>
                                         </NestedTableContainer>
                                     </TableCell>
                                 </TableRow>
                             )}
 
-                            {/* Nested content for registry.npmjs.org */}
-                            {role.role === 'registry.npmjs.org' && expandedRow === 'registry.npmjs.org' && (
+                            {/* For delegated roles, show delegation info if available */}
+                            {role.role !== 'root' && role.role !== 'timestamp' && role.role !== 'snapshot' && role.role !== 'targets' && 
+                             expandedRow === role.role && (
                                 <TableRow>
                                     <TableCell colSpan={5}>
                                         <NestedTableContainer>
-                                            {/* Registry delegation details - show directly */}
-                                            {registryDelegation && (
+                                            {/* Delegation details - generic for any delegated role */}
+                                            {findDelegationInfo(role.role) && (
                                                 <NestedTable>
                                                     <thead>
                                                         <NestedTableRow>
@@ -245,20 +248,26 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                                     </thead>
                                                     <tbody>
                                                         <NestedTableRow>
+                                                            <NestedTableCell>Delegation Source</NestedTableCell>
+                                                            <NestedTableCell>
+                                                                "targets" role delegates to "{role.role}"
+                                                            </NestedTableCell>
+                                                        </NestedTableRow>
+                                                        <NestedTableRow>
                                                             <NestedTableCell>Paths</NestedTableCell>
                                                             <NestedTableCell>
-                                                                {registryDelegation.paths?.map((path, index) => (
+                                                                {findDelegationInfo(role.role)?.paths?.map((path, index) => (
                                                                     <div key={index}>{path}</div>
                                                                 ))}
                                                             </NestedTableCell>
                                                         </NestedTableRow>
                                                         <NestedTableRow>
                                                             <NestedTableCell>Terminating</NestedTableCell>
-                                                            <NestedTableCell>{registryDelegation.terminating ? 'Yes' : 'No'}</NestedTableCell>
+                                                            <NestedTableCell>{findDelegationInfo(role.role)?.terminating ? 'Yes' : 'No'}</NestedTableCell>
                                                         </NestedTableRow>
                                                         <NestedTableRow>
                                                             <NestedTableCell>Threshold</NestedTableCell>
-                                                            <NestedTableCell>{registryDelegation.threshold}</NestedTableCell>
+                                                            <NestedTableCell>{findDelegationInfo(role.role)?.threshold}</NestedTableCell>
                                                         </NestedTableRow>
                                                     </tbody>
                                                 </NestedTable>
