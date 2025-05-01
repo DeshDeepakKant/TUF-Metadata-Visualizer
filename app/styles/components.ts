@@ -116,4 +116,32 @@ export const SignersList = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+`;
+
+// Tree View specific components
+export const TreeNodeContainer = styled.div`
+  margin: 0.25rem 0;
+`;
+
+export const TreeNodeContent = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  
+  &:hover {
+    background-color: var(--hover);
+  }
+`;
+
+export const TreeCollapsibleContent = styled.div<{ $expanded: boolean }>`
+  display: ${props => props.$expanded ? 'block' : 'none'};
+  padding-left: 1.5rem;
+`;
+
+export const TreeLabel = styled.span<{ $highlight?: boolean }>`
+  ${props => props.$highlight && `
+    font-weight: 600;
+    color: var(--primary);
+  `}
 `; 

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import RoleTable from './RoleTable';
 import RepoInfo from './RepoInfo';
 import RootVersionSelector from './RootVersionSelector';
+import TufTreeViews from './TreeView';
 import { RoleInfo } from '../utils/types';
 import styled from 'styled-components';
 import { loadTufDataAction } from '../actions';
@@ -20,6 +21,31 @@ const SectionTitle = styled.h2`
   font-weight: 600;
   margin-bottom: 1rem;
 `;
+
+// New component for toggling between views
+const ViewToggle = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const ToggleButton = styled.button<{ $active: boolean }>`
+  padding: 0.5rem 1rem;
+  background-color: ${props => props.$active ? 'var(--primary)' : 'transparent'};
+  color: ${props => props.$active ? 'white' : 'var(--text-primary)'};
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-weight: ${props => props.$active ? '600' : '400'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.$active ? 'var(--primary)' : 'var(--hover)'};
+  }
+`;
+
+// View types
+type ViewType = 'table' | 'tree';
 
 interface TufViewerClientProps {
     roles: RoleInfo[];
@@ -245,6 +271,9 @@ export default function TufViewerClient({
 
     // Get spec_version from the first role (assuming it's the same for all)
     const specVersion = roles[0]?.specVersion;
+    
+    // Add state for view type
+    const [viewType, setViewType] = useState<ViewType>('table');
 
     return (
         <div className="space-y-4">
@@ -254,9 +283,37 @@ export default function TufViewerClient({
                 </div>
             )}
 
-            {/* Current TUF Roles Section */}
-            <SectionTitle>TUF Repository Roles</SectionTitle>
-            <RoleTable roles={roles} />
+            {/* View toggle buttons */}
+            <ViewToggle>
+                <ToggleButton 
+                    $active={viewType === 'table'} 
+                    onClick={() => setViewType('table')}
+                >
+                    Table View
+                </ToggleButton>
+                <ToggleButton 
+                    $active={viewType === 'tree'} 
+                    onClick={() => setViewType('tree')}
+                >
+                    Tree View (Experimental)
+                </ToggleButton>
+            </ViewToggle>
+
+            {/* Current TUF Roles Section - Table View */}
+            {viewType === 'table' && (
+                <>
+                    <SectionTitle>TUF Repository Roles</SectionTitle>
+                    <RoleTable roles={roles} />
+                </>
+            )}
+            
+            {/* Current TUF Roles Section - Tree View */}
+            {viewType === 'tree' && (
+                <>
+                    <SectionTitle>TUF Repository Hierarchies</SectionTitle>
+                    <TufTreeViews roles={roles} />
+                </>
+            )}
             
             {/* Root Version Diff Section */}
             <SectionDivider />

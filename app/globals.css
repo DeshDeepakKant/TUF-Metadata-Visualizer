@@ -4,6 +4,8 @@
 
 :root {
   --text: #213547;
+  --text-primary: #213547;
+  --text-secondary: #666;
   --background: #ffffff;
   --background-subtle: #f9fafb;
   --hover: #f5f5f5;
@@ -16,11 +18,17 @@
   --warning-light: #fef3c7;
   --error: #dc2626;
   --error-light: #fee2e2;
+  --header: #f9fafb;
+  --link: #0070f3;
+  --highlight-bg: #e6f7ff;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #efefef;
+    --text-primary: #efefef;
+    --text-secondary: #aaa;
     --background: #1a1a1a;
     --background-subtle: #282828;
     --hover: #2a2a2a;
@@ -33,6 +41,9 @@
     --warning-light: #382604;
     --error: #ef4444;
     --error-light: #3c1616;
+    --header: #282828;
+    --link: #3b82f6;
+    --highlight-bg: #143055;
   }
 }
 
