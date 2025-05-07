@@ -4,6 +4,12 @@ const nextConfig = {
     compiler: {
         styledComponents: true,
     },
+    output: 'export',
+    images: {
+        unoptimized: true,
+    },
+    basePath: process.env.NODE_ENV === 'production' ? '/TUF-Metadata-Visualizer' : '',
+    assetPrefix: process.env.NODE_ENV === 'production' ? '/TUF-Metadata-Visualizer/' : '',
     webpack: (config) => {
         config.resolve.fallback = {
             ...config.resolve.fallback,
