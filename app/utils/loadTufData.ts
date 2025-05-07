@@ -1,4 +1,4 @@
-'use server';
+// Removed 'use server' directive to make compatible with static export
 
 import { createTufRepository } from './tufClient';
 import { RoleInfo } from './types';

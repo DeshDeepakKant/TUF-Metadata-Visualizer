@@ -5,6 +5,7 @@ const nextConfig = {
         styledComponents: true,
     },
     output: 'export',
+    distDir: 'out',
     images: {
         unoptimized: true,
     },

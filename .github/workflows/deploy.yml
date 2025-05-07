@@ -38,6 +38,12 @@ jobs:
         env:
           NODE_ENV: production
       
+      - name: List output directory
+        run: ls -la
+      
+      - name: List out directory
+        run: ls -la out || echo "out directory not found"
+      
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
