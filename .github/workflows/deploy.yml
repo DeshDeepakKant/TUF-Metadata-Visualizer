@@ -1,0 +1,74 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check Next.js config
+        run: cat next.config.js
+      
+      - name: Build with Next.js
+        run: npm run build
+        env:
+          NODE_ENV: production
+      
+      - name: Debug - List workspace
+        run: ls -la
+      
+      - name: Debug - List build output
+        run: |
+          echo "Checking for .next directory:"
+          ls -la .next || echo ".next directory not found"
+          
+          echo "Checking for out directory:"
+          ls -la out || echo "out directory not found"
+          
+          if [ -d "out" ]; then
+            echo "Contents of out directory:"
+            find out -type f | head -n 20
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4 
