@@ -1,3 +1,9 @@
+/**
+ * NOTE: This file is no longer used in the application.
+ * The functionality has been moved to loadTufData.ts to support static export.
+ * This file is kept for reference purposes only.
+ */
+
 // This file is server-side only
 
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
