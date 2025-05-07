@@ -125,6 +125,9 @@ export default function RoleTable({ roles }: RoleTableProps) {
         return <div>No roles found.</div>;
     }
 
+    // Get spec_version from the first role (assuming it's the same for all)
+    const specVersion = roles[0]?.specVersion || '-';
+
     // Find the targets role
     const targetsRole = roles.find(role => role.role === 'targets');
 
@@ -139,10 +142,15 @@ export default function RoleTable({ roles }: RoleTableProps) {
         }
     };
 
-
-
     return (
         <TableContainer>
+            <div style={{ marginBottom: '1rem', fontWeight: 500 }}>
+                {specVersion && (
+                    <div className="text-sm text-gray-600">
+                        TUF Specification Version: {specVersion}
+                    </div>
+                )}
+            </div>
             <Table>
                 <thead>
                     <TableRow>
@@ -201,79 +209,51 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                             {/* Online keys */}
                                             {role.signers.keyids.some(keyid => isOnlineKey(keyid)) && (
                                                 <SignersList>
-                                                    <OnlineKey>online key</OnlineKey>
-                                                    <ThresholdInfo>
-                                                        {' '}({role.signers.required} of {role.signers.total} required)
-                                                    </ThresholdInfo>
+                                                    {role.signers.keyids
+                                                        .filter(keyid => isOnlineKey(keyid))
+                                                        .map((keyid, index, filteredArray) => (
+                                                            <React.Fragment key={keyid}>
+                                                                <OnlineKey>{formatKeyId(keyid)}</OnlineKey>
+                                                                {index < filteredArray.length - 1 && ', '}
+                                                            </React.Fragment>
+                                                        ))}
                                                 </SignersList>
                                             )}
                                         </>
                                     ) : (
-                                        <SignerInfo>
-                                            <RequiredSigners>{role.signers.required}</RequiredSigners>
-                                            <TotalSigners>of {role.signers.total}</TotalSigners>
-                                        </SignerInfo>
+                                        <div>No signers</div>
                                     )}
                                 </TableCell>
                             </TableRow>
-
-                            {/* Nested content for targets */}
-                            {role.role === 'targets' && expandedRow === 'targets' && (
+                            {expandedRow === role.role && role.targets && (
                                 <TableRow>
-                                    <TableCell colSpan={5}>
+                                    <TableCell colSpan={5 as number}>
                                         <NestedTableContainer>
-                                            {/* Targets content - only show paths directly */}
-                                            {targetsRole?.targets && (
-                                                <NestedTable>
-                                                    <thead>
-                                                        <NestedTableRow>
-                                                            <NestedTableHeader>Path</NestedTableHeader>
-                                                        </NestedTableRow>
-                                                    </thead>
-                                                    <tbody>
-                                                        {Object.entries(targetsRole.targets).map(([path]) => (
-                                                            <NestedTableRow key={path}>
-                                                                <NestedTableCell>{path}</NestedTableCell>
-                                                            </NestedTableRow>
-                                                        ))}
-                                                    </tbody>
-                                                </NestedTable>
-                                            )}
-                                        </NestedTableContainer>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-
-                            {/* Nested content for registry.npmjs.org */}
-                            {role.role === 'registry.npmjs.org' && expandedRow === 'registry.npmjs.org' && (
-                                <TableRow>
-                                    <TableCell colSpan={5}>
-                                        <NestedTableContainer>
-                                            {/* Registry delegation details - show directly */}
-                                            {registryDelegation && (
-                                                <NestedTable>
-                                                    <thead>
-                                                        <NestedTableRow>
-                                                            <NestedTableHeader>Property</NestedTableHeader>
-                                                            <NestedTableHeader>Value</NestedTableHeader>
-                                                        </NestedTableRow>
-                                                    </thead>
-                                                    <tbody>
-                                                        <NestedTableRow>
-                                                            <NestedTableCell>Paths</NestedTableCell>
+                                            <h4>Targets</h4>
+                                            <NestedTable>
+                                                <thead>
+                                                    <NestedTableRow>
+                                                        <NestedTableHeader>Target Path</NestedTableHeader>
+                                                        <NestedTableHeader>Size</NestedTableHeader>
+                                                        <NestedTableHeader>Hashes</NestedTableHeader>
+                                                    </NestedTableRow>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.entries(role.targets).map(([path, info]) => (
+                                                        <NestedTableRow key={path}>
+                                                            <NestedTableCell>{path}</NestedTableCell>
+                                                            <NestedTableCell>{info.length} bytes</NestedTableCell>
                                                             <NestedTableCell>
-                                                                {registryDelegation.paths?.map((path, index) => (
-                                                                    <div key={index}>{path}</div>
+                                                                {Object.entries(info.hashes).map(([algo, hash]) => (
+                                                                    <div key={algo}>
+                                                                        <strong>{algo}:</strong> {hash.substring(0, 16)}...
+                                                                    </div>
                                                                 ))}
                                                             </NestedTableCell>
                                                         </NestedTableRow>
-                                                        <NestedTableRow>
-                                                            <NestedTableCell>Terminating</NestedTableCell>
-                                                            <NestedTableCell>{registryDelegation.terminating ? 'Yes' : 'No'}</NestedTableCell>
-                                                        </NestedTableRow>
-                                                    </tbody>
-                                                </NestedTable>
-                                            )}
+                                                    ))}
+                                                </tbody>
+                                            </NestedTable>
                                         </NestedTableContainer>
                                     </TableCell>
                                 </TableRow>

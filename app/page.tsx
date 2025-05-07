@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
-import RoleTable from './components/RoleTable';
-import RepoInfo from './components/RepoInfo';
+import { useSearchParams } from 'next/navigation';
 import { loadTufData } from './utils/loadTufData';
 import TufViewerClient from './components/TufViewerClient';
 import { RoleInfo } from './utils/types';
 
 export default function Home() {
+    const searchParams = useSearchParams();
+    const remoteUrl = searchParams.get('url') || undefined;
+    
     const [data, setData] = useState<{
         roles: RoleInfo[],
         version: string,
@@ -23,14 +24,14 @@ export default function Home() {
     useEffect(() => {
         async function fetchData() {
             try {
-                const result = await loadTufData();
+                const result = await loadTufData(remoteUrl);
                 setData(result);
             } catch (err) {
                 console.error('Unexpected error in Home page:', err);
                 setData({
                     roles: [],
                     version: '',
-                    error: 'Failed to load TUF data'
+                    error: `Failed to load TUF data: ${err instanceof Error ? err.message : String(err)}`
                 });
             } finally {
                 setLoading(false);
@@ -38,15 +39,17 @@ export default function Home() {
         }
 
         fetchData();
-    }, []);
+    }, [remoteUrl]);
 
     if (loading) {
         return <div>Loading TUF data...</div>;
     }
 
-    if (data.error) {
-        return <TufViewerClient roles={[]} version="" error={data.error} />;
-    }
-
-    return <TufViewerClient roles={data.roles} version={data.version} error={null} />;
+    // If there's an error or no data, show the client with the error
+    return <TufViewerClient 
+        roles={data.roles} 
+        version={data.version || '0.1.0'} 
+        error={data.error}
+        initialRemoteUrl={remoteUrl} 
+    />;
 } 

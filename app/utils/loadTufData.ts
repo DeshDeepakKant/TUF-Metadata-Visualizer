@@ -1,6 +1,8 @@
 'use client';
 
 import { RoleInfo } from './types';
+import fs from 'fs';
+import path from 'path';
 
 // Define a type for the delegated role
 interface DelegatedRole {
@@ -11,8 +13,8 @@ interface DelegatedRole {
     terminating?: boolean;
 }
 
-// Client-side function to load TUF data from static files
-export async function loadTufData(): Promise<{
+// Client-side function to load TUF data from static files or remote URL
+export async function loadTufData(remoteUrl?: string): Promise<{
     roles: RoleInfo[],
     version: string,
     error: string | null
@@ -20,12 +22,41 @@ export async function loadTufData(): Promise<{
     try {
         console.log('Starting to load TUF data from client-side...');
 
+        // If remoteUrl is provided, use it to fetch metadata
+        const baseUrl = remoteUrl ? 
+            (remoteUrl.endsWith('/') ? remoteUrl : `${remoteUrl}/`) : 
+            '/metadata/';
+
         // Load the metadata files via fetch
         const [rootData, timestampData, snapshotData, targetsData] = await Promise.all([
-            fetch('/metadata/root.json').then(res => res.json()).catch(() => null),
-            fetch('/metadata/timestamp.json').then(res => res.json()).catch(() => null),
-            fetch('/metadata/snapshot.json').then(res => res.json()).catch(() => null),
-            fetch('/metadata/targets.json').then(res => res.json()).catch(() => null),
+            fetch(`${baseUrl}root.json`).then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch root.json: ${res.status} ${res.statusText}`);
+                return res.json();
+            }).catch(err => {
+                console.error('Error fetching root.json:', err);
+                return null;
+            }),
+            fetch(`${baseUrl}timestamp.json`).then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch timestamp.json: ${res.status} ${res.statusText}`);
+                return res.json();
+            }).catch(err => {
+                console.error('Error fetching timestamp.json:', err);
+                return null;
+            }),
+            fetch(`${baseUrl}snapshot.json`).then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch snapshot.json: ${res.status} ${res.statusText}`);
+                return res.json();
+            }).catch(err => {
+                console.error('Error fetching snapshot.json:', err);
+                return null;
+            }),
+            fetch(`${baseUrl}targets.json`).then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch targets.json: ${res.status} ${res.statusText}`);
+                return res.json();
+            }).catch(err => {
+                console.error('Error fetching targets.json:', err);
+                return null;
+            }),
         ]);
 
         // Check if we have the basic metadata files
@@ -34,7 +65,9 @@ export async function loadTufData(): Promise<{
             return {
                 roles: [],
                 version: "TUF-JS Viewer v0.1.0",
-                error: 'Failed to load TUF metadata files. Make sure they exist in the public/metadata directory.'
+                error: `Failed to load TUF metadata files. ${remoteUrl ? 
+                    `Check that the URL ${remoteUrl} contains valid TUF metadata.` : 
+                    'Make sure metadata files exist in the public/metadata directory.'}`
             };
         }
 
@@ -51,7 +84,7 @@ export async function loadTufData(): Promise<{
                     total: rootData.signed.roles?.root?.keyids?.length || 0,
                     keyids: rootData.signed.roles?.root?.keyids || []
                 },
-                jsonLink: '/metadata/root.json',
+                jsonLink: `${baseUrl}root.json`,
                 version: rootData.signed.version,
                 specVersion: rootData.signed.spec_version
             });
@@ -67,7 +100,7 @@ export async function loadTufData(): Promise<{
                     total: rootData.signed.roles?.timestamp?.keyids?.length || 0,
                     keyids: rootData.signed.roles?.timestamp?.keyids || []
                 },
-                jsonLink: '/metadata/timestamp.json',
+                jsonLink: `${baseUrl}timestamp.json`,
                 version: timestampData.signed.version,
                 specVersion: timestampData.signed.spec_version
             });
@@ -83,7 +116,7 @@ export async function loadTufData(): Promise<{
                     total: rootData.signed.roles?.snapshot?.keyids?.length || 0,
                     keyids: rootData.signed.roles?.snapshot?.keyids || []
                 },
-                jsonLink: '/metadata/snapshot.json',
+                jsonLink: `${baseUrl}snapshot.json`,
                 version: snapshotData.signed.version,
                 specVersion: snapshotData.signed.spec_version
             });
@@ -99,7 +132,7 @@ export async function loadTufData(): Promise<{
                     total: rootData.signed.roles?.targets?.keyids?.length || 0,
                     keyids: rootData.signed.roles?.targets?.keyids || []
                 },
-                jsonLink: '/metadata/targets.json',
+                jsonLink: `${baseUrl}targets.json`,
                 version: targetsData.signed.version,
                 specVersion: targetsData.signed.spec_version,
                 targets: targetsData.signed.targets || {},
@@ -121,7 +154,13 @@ export async function loadTufData(): Promise<{
             for (const roleFile of delegatedRoles) {
                 try {
                     const roleName = roleFile.replace('.json', '');
-                    const roleData = await fetch(`/metadata/${roleFile}`).then(res => res.json()).catch(() => null);
+                    const roleData = await fetch(`${baseUrl}${roleFile}`).then(res => {
+                        if (!res.ok) throw new Error(`Failed to fetch ${roleFile}: ${res.status} ${res.statusText}`);
+                        return res.json();
+                    }).catch(err => {
+                        console.error(`Error fetching ${roleFile}:`, err);
+                        return null;
+                    });
                     
                     if (roleData && roleData.signed) {
                         // Find the delegation info in the targets metadata
@@ -137,7 +176,7 @@ export async function loadTufData(): Promise<{
                                 total: delegationInfo?.keyids?.length || 0,
                                 keyids: delegationInfo?.keyids || []
                             },
-                            jsonLink: `/metadata/${roleFile}`,
+                            jsonLink: `${baseUrl}${roleFile}`,
                             version: roleData.signed.version,
                             specVersion: roleData.signed.spec_version,
                             targets: roleData.signed.targets || {}
@@ -155,7 +194,9 @@ export async function loadTufData(): Promise<{
             return {
                 roles: [],
                 version: "TUF-JS Viewer v0.1.0",
-                error: 'No TUF roles found. Make sure metadata files exist in the public/metadata directory.'
+                error: `No TUF roles found. ${remoteUrl ? 
+                    `Check that the URL ${remoteUrl} contains valid TUF metadata.` : 
+                    'Make sure metadata files exist in the public/metadata directory.'}`
             };
         }
 
@@ -177,5 +218,76 @@ export async function loadTufData(): Promise<{
             version: "TUF-JS Viewer v0.1.0",
             error: `Failed to load TUF repository data: ${errorMessage}`
         };
+    }
+}
+
+// Function to get a list of available root versions
+export async function getAvailableRootVersions(remoteUrl?: string): Promise<{ version: number; path: string }[]> {
+    try {
+        const baseUrl = remoteUrl ? 
+            (remoteUrl.endsWith('/') ? remoteUrl : `${remoteUrl}/`) : 
+            '/metadata/';
+            
+        // Try to fetch the root.json file first to get the current version
+        const rootResponse = await fetch(`${baseUrl}root.json`);
+        if (!rootResponse.ok) {
+            throw new Error(`Failed to fetch root.json: ${rootResponse.status} ${rootResponse.statusText}`);
+        }
+        
+        const rootData = await rootResponse.json();
+        const currentVersion = rootData.signed?.version;
+        
+        if (!currentVersion) {
+            throw new Error('Invalid root.json: missing version');
+        }
+        
+        // Create a list with the current version
+        const versions = [
+            { version: currentVersion, path: `${baseUrl}root.json` }
+        ];
+        
+        // Try to fetch previous versions if they exist
+        for (let v = 1; v < currentVersion; v++) {
+            try {
+                const versionedUrl = `${baseUrl}${v}.root.json`;
+                const response = await fetch(versionedUrl, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    versions.push({ version: v, path: versionedUrl });
+                }
+            } catch (e) {
+                // Ignore errors for previous versions that don't exist
+                console.log(`Version ${v} not found, skipping`);
+            }
+        }
+        
+        // Sort by version in descending order
+        return versions.sort((a, b) => b.version - a.version);
+    } catch (error) {
+        console.error('Error getting root versions:', error);
+        return [];
+    }
+}
+
+export async function loadRootByVersion(version: number, remoteUrl?: string): Promise<any> {
+    try {
+        const baseUrl = remoteUrl ? 
+            (remoteUrl.endsWith('/') ? remoteUrl : `${remoteUrl}/`) : 
+            '/metadata/';
+            
+        // Determine the URL based on version
+        const url = version === 0 ? 
+            `${baseUrl}root.json` : 
+            `${baseUrl}${version}.root.json`;
+            
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Error loading root version ${version}:`, error);
+        throw error;
     }
 } 
