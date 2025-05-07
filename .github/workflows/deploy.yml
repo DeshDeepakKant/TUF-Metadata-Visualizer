@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Check Next.js config
+        run: cat next.config.js
+      
       - name: Build with Next.js
         run: npm run build
         env:
@@ -41,28 +44,17 @@ jobs:
       - name: Debug - List workspace
         run: ls -la
       
-      - name: Debug - List .next directory
-        run: ls -la .next || echo ".next directory not found"
-      
-      - name: Debug - List out directory
-        run: ls -la out || echo "out directory not found"
-      
-      - name: Create out directory if it doesn't exist
-        run: mkdir -p out
-      
-      - name: Copy .next/standalone to out if needed
+      - name: Debug - List build output
         run: |
-          if [ -d ".next/standalone" ]; then
-            cp -r .next/standalone/* out/
-            echo "Copied .next/standalone to out"
-          fi
-      
-      - name: Copy static assets if needed
-        run: |
-          if [ -d ".next/static" ] && [ ! -d "out/_next/static" ]; then
-            mkdir -p out/_next
-            cp -r .next/static out/_next/
-            echo "Copied .next/static to out/_next/static"
+          echo "Checking for .next directory:"
+          ls -la .next || echo ".next directory not found"
+          
+          echo "Checking for out directory:"
+          ls -la out || echo "out directory not found"
+          
+          if [ -d "out" ]; then
+            echo "Contents of out directory:"
+            find out -type f | head -n 20
           fi
       
       - name: Upload artifact
