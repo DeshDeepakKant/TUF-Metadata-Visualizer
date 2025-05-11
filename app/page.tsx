@@ -1,52 +1,25 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { notFound } from 'next/navigation';
 import RoleTable from './components/RoleTable';
 import RepoInfo from './components/RepoInfo';
 import { loadTufData } from './utils/loadTufData';
 import TufViewerClient from './components/TufViewerClient';
-import { RoleInfo } from './utils/types';
 
-export default function Home() {
-    const [data, setData] = useState<{
-        roles: RoleInfo[],
-        version: string,
-        error: string | null
-    }>({
-        roles: [],
-        version: '',
-        error: null
-    });
-    const [loading, setLoading] = useState(true);
+export default async function Home() {
+    try {
+        // Load TUF data using the server action
+        const { roles, version, error } = await loadTufData();
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const result = await loadTufData();
-                setData(result);
-            } catch (err) {
-                console.error('Unexpected error in Home page:', err);
-                setData({
-                    roles: [],
-                    version: '',
-                    error: 'Failed to load TUF data'
-                });
-            } finally {
-                setLoading(false);
-            }
+        // If there's an error, show the custom not-found page
+        if (error) {
+            console.error('Error loading TUF data:', error);
+            notFound();
         }
 
-        fetchData();
-    }, []);
-
-    if (loading) {
-        return <div>Loading TUF data...</div>;
+        // Render the client component with the data
+        return <TufViewerClient roles={roles} version={version} error={null} />;
+    } catch (err) {
+        console.error('Unexpected error in Home page:', err);
+        notFound();
     }
-
-    if (data.error) {
-        return <TufViewerClient roles={[]} version="" error={data.error} />;
-    }
-
-    return <TufViewerClient roles={data.roles} version={data.version} error={null} />;
 } 

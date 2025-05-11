@@ -7,7 +7,7 @@ name: Deploy Next.js site to Pages
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["main", "github-pages-deployment"]
+    branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -74,21 +74,7 @@ jobs:
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
       - name: Build with Next.js
-        env:
-          CI: false
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
-      - name: Debug - List build output
-        run: |
-          echo "Checking for .next directory:"
-          ls -la .next || echo ".next directory not found"
-          
-          echo "Checking for out directory:"
-          ls -la out || echo "out directory not found"
-          
-          if [ -d "out" ]; then
-            echo "Contents of out directory:"
-            find out -type f | head -n 20
-          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -101,8 +87,6 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
-    # Only deploy from the main branch
-    if: github.ref == 'refs/heads/main'
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
