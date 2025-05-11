@@ -7,7 +7,6 @@ import RootVersionSelector from './RootVersionSelector';
 import { RoleInfo } from '../utils/types';
 import styled from 'styled-components';
 import { loadTufDataAction } from '../actions';
-import TufTreeViews from './TufTreeViews';
 
 // Styled components
 const SectionDivider = styled.div`
@@ -39,7 +38,6 @@ export default function TufViewerClient({
     const [error, setError] = useState<string | null>(initialError);
     const [remoteUrl, setRemoteUrl] = useState<string | undefined>(initialRemoteUrl);
     const [loading, setLoading] = useState(false);
-    const [showTreeViews, setShowTreeViews] = useState(false);
     
     // Handle remote URL changes
     const handleRemoteUrlChange = async (url: string) => {
@@ -264,54 +262,6 @@ export default function TufViewerClient({
             <SectionDivider />
             <SectionTitle>Root Version Diff</SectionTitle>
             <RootVersionSelector remoteUrl={remoteUrl} />
-            
-            {/* Tree Visualizations Section */}
-            <SectionDivider />
-            <div>
-                <SectionTitle>
-                    TUF Metadata Visualizations
-                </SectionTitle>
-                
-                {!showTreeViews ? (
-                    <div style={{ textAlign: 'center', margin: '2rem 0' }}>
-                        <button 
-                            onClick={() => setShowTreeViews(true)}
-                            style={{
-                                padding: '0.75rem 1.5rem',
-                                backgroundColor: '#0070f3',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                fontSize: '1rem',
-                                fontWeight: '500',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Show TUF Metadata Visualizations
-                        </button>
-                    </div>
-                ) : (
-                    <div style={{ textAlign: 'center', margin: '1rem 0 2rem' }}>
-                        <button 
-                            onClick={() => setShowTreeViews(false)}
-                            style={{
-                                padding: '0.5rem 1.25rem',
-                                backgroundColor: '#e4e4e4',
-                                color: '#333',
-                                border: 'none',
-                                borderRadius: '4px',
-                                fontSize: '0.9rem',
-                                fontWeight: '500',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Hide Visualizations
-                        </button>
-                    </div>
-                )}
-                
-                {showTreeViews && <TufTreeViews roles={roles} />}
-            </div>
         </div>
     );
 }
