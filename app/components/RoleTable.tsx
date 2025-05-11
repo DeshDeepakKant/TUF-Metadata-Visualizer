@@ -49,15 +49,19 @@ const NestedTableCell = styled.td`
   border-bottom: 1px solid var(--border);
 `;
 
-const ExpandButton = styled.button<{ $expanded: boolean }>`
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.75rem;
-    margin-right: 0.5rem;
-    padding: 0.25rem;
-    transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
-    transition: transform 0.2s ease;
+const ExpandButton = styled.button<{ $expanded?: boolean }>`
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem;
+  color: var(--link);
+  transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
+  transition: transform 0.2s ease;
+  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const RoleName = styled.div`
@@ -116,12 +120,10 @@ const isOnlineKey = (keyid: string): boolean => {
 export default function RoleTable({ roles }: RoleTableProps) {
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+
     if (!roles || roles.length === 0) {
         return <div>No roles found.</div>;
     }
-
-    // Get spec_version from the first role (assuming it's the same for all)
-    const specVersion = roles[0]?.specVersion || '-';
 
     // Find the targets role
     const targetsRole = roles.find(role => role.role === 'targets');
@@ -137,10 +139,10 @@ export default function RoleTable({ roles }: RoleTableProps) {
         }
     };
 
+
+
     return (
         <TableContainer>
-            <div style={{ marginBottom: '1rem', fontWeight: 500 }}>
-            </div>
             <Table>
                 <thead>
                     <TableRow>
@@ -156,15 +158,22 @@ export default function RoleTable({ roles }: RoleTableProps) {
                         <React.Fragment key={role.role}>
                             <TableRow>
                                 <TableCell>
-                                    {(role.role === 'targets' || role.role === 'registry.npmjs.org') && (
-                                        <ExpandButton
-                                            $expanded={expandedRow === role.role}
-                                            onClick={() => handleRowExpand(role.role)}
-                                        >
-                                            ▶
-                                        </ExpandButton>
-                                    )}
-                                    {role.role} (<Link href={role.jsonLink} target="_blank">json</Link>)
+                                    <RoleName>
+                                        {(role.role === 'targets' || role.role === 'registry.npmjs.org') ? (
+                                            <ExpandableArea onClick={() => handleRowExpand(role.role)}>
+                                                <ExpandButton $expanded={expandedRow === role.role}>
+                                                    ▶
+                                                </ExpandButton>
+                                                {role.role}
+                                            </ExpandableArea>
+                                        ) : (
+                                            <>
+                                                <div style={{ width: '20px' }}></div>
+                                                {role.role}
+                                            </>
+                                        )}
+                                        {' '}(<Link href={role.jsonLink} target="_blank">json</Link>)
+                                    </RoleName>
                                 </TableCell>
                                 <TableCell>{role.signingStarts || 'N/A'}</TableCell>
                                 <TableCell>{role.version || '-'}</TableCell>
@@ -261,10 +270,6 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                                         <NestedTableRow>
                                                             <NestedTableCell>Terminating</NestedTableCell>
                                                             <NestedTableCell>{registryDelegation.terminating ? 'Yes' : 'No'}</NestedTableCell>
-                                                        </NestedTableRow>
-                                                        <NestedTableRow>
-                                                            <NestedTableCell>Threshold</NestedTableCell>
-                                                            <NestedTableCell>{registryDelegation.threshold}</NestedTableCell>
                                                         </NestedTableRow>
                                                     </tbody>
                                                 </NestedTable>
