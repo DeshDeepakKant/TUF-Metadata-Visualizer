@@ -1,21 +1,3 @@
-/**
- * Types for TUF metadata representation
- * 
- * USAGE STATUS:
- * - RoleInfo: USED DIRECTLY by TufRepository, RoleTable, and TufViewerClient components
- * - TufKey: USED INDIRECTLY in TufTargetsMetadata and TufRootMetadata
- * - TufRole: USED INDIRECTLY in TufRootMetadata
- * - TufRootMetadata: UNUSED directly, but kept for reference to TUF specification
- * - TufTimestampMetadata: UNUSED directly, but kept for reference to TUF specification
- * - TufSnapshotMetadata: UNUSED directly, but kept for reference to TUF specification
- * - TufTargetsMetadata: UNUSED directly, but kept for reference to TUF specification
- * - TufSignedMetadata: UNUSED directly, but kept for reference to TUF specification
- * 
- * NOTE: These interfaces could be replaced with direct imports from @tufjs/models
- * in the future, as those would be more up-to-date with the TUF specification.
- * For now, we're keeping them for reference and potential future use.
- */
-
 export interface TufKey {
     keyid_hash_algorithms: string[];
     keytype: string;
@@ -110,16 +92,17 @@ export interface TufSignedMetadata<T> {
 
 export interface RoleInfo {
     role: string;
+    version?: number;
+    specVersion?: string;
     signingStarts?: string;
+    signingEnds?: string;
     expires: string;
+    jsonLink: string;
     signers: {
         required: number;
         total: number;
         keyids: string[];
     };
-    jsonLink: string;
-    version?: number;
-    specVersion?: string;
     targets?: Record<string, {
         hashes: Record<string, string>;
         length: number;
@@ -128,10 +111,10 @@ export interface RoleInfo {
     delegations?: {
         keys: Record<string, {
             keytype: string;
+            scheme: string;
             keyval: {
                 public: string;
             };
-            scheme: string;
         }>;
         roles: Array<{
             name: string;
@@ -141,4 +124,40 @@ export interface RoleInfo {
             terminating?: boolean;
         }>;
     };
+}
+
+// Root metadata diff interfaces
+export interface KeyDiff {
+    keyid: string;
+    status: 'added' | 'removed' | 'changed';
+    keytype?: string;
+    scheme?: string;
+    oldKeytype?: string;
+    oldScheme?: string;
+    keyowner?: string; // From x-tuf-on-ci-keyowner
+}
+
+export interface RoleDiff {
+    roleName: string;
+    addedKeyids: string[];
+    removedKeyids: string[];
+    oldThreshold?: number;
+    newThreshold?: number;
+}
+
+export interface SignatureDiff {
+    keyid: string;
+    oldSigned: boolean;
+    newSigned: boolean;
+    keyowner?: string;
+}
+
+export interface RootDiff {
+    oldVersion: number;
+    newVersion: number;
+    oldExpires: string;
+    newExpires: string;
+    keyDiffs: KeyDiff[];
+    roleDiffs: RoleDiff[];
+    signatureDiffs: SignatureDiff[];
 } 

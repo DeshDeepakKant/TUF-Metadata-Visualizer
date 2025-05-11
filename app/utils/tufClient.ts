@@ -2,9 +2,9 @@
 
 import { Root, Timestamp, Snapshot, Targets, Metadata } from '@tufjs/models';
 import { RoleInfo } from './types';
-import { parseISO, format } from 'date-fns';
-import * as path from 'path';
-import * as fs from 'fs';
+import fs from 'fs';
+import path from 'path';
+import { format, parseISO } from 'date-fns';
 
 // For client-side requests (via fetch)
 const METADATA_BASE_URL = '/metadata';
@@ -19,13 +19,191 @@ export class TufRepository {
     private targetsMetadata: Metadata<Targets> | null = null;
     private delegatedTargetsMetadata: Map<string, Metadata<Targets>> = new Map();
     private tufClient: any | null = null;
+    private remoteUrl: string | null = null;
 
-    constructor(baseUrl: string = METADATA_BASE_URL) {
+    constructor(baseUrl: string = METADATA_BASE_URL, remoteUrl: string | null = null) {
         // We'll just use direct file access instead of fetch
         this.tufClient = null;
+        this.remoteUrl = remoteUrl;
     }
 
     async initialize(): Promise<void> {
+        try {
+            // If a remote URL is provided, use that to fetch metadata
+            if (this.remoteUrl) {
+                await this.initializeFromRemote();
+            } else {
+                // Check if metadata directory exists before proceeding
+                if (!fs.existsSync(METADATA_FS_PATH)) {
+                    console.error(`Metadata directory not found: ${METADATA_FS_PATH}`);
+                    throw new Error(
+                        `Metadata directory not found. Either create a metadata folder at ${METADATA_FS_PATH} with TUF metadata files, or use a remote URL.`
+                    );
+                }
+                
+                // Otherwise, try to load from local files
+                await this.initializeFromLocal();
+            }
+        } catch (error) {
+            console.error("Error initializing TUF repository:", error);
+            throw error;
+        }
+    }
+
+    async initializeFromRemote(): Promise<void> {
+        try {
+            // Implement the TUF client workflow for remote fetching
+            const rootData = await this.fetchLatestRoot();
+            const rootSigned = Root.fromJSON(rootData.signed);
+            this.rootMetadata = new Metadata<Root>(
+                rootSigned,
+                this.convertSignatures(rootData.signatures)
+            );
+
+            // Fetch timestamp.json (always latest)
+            const timestampData = await this.fetchJsonMetadata('timestamp.json');
+            const timestampSigned = Timestamp.fromJSON(timestampData.signed);
+            this.timestampMetadata = new Metadata<Timestamp>(
+                timestampSigned,
+                this.convertSignatures(timestampData.signatures)
+            );
+
+            // Get the snapshot version from timestamp
+            // Access as plain object since tufjs model might not expose the meta property correctly
+            const timestampObj = timestampData.signed as any;
+            const snapshotInfo = timestampObj.meta?.['snapshot.json'];
+            const snapshotVersion = snapshotInfo?.version;
+            
+            // Fetch the specified snapshot version
+            const snapshotFileName = snapshotVersion ? `${snapshotVersion}.snapshot.json` : 'snapshot.json';
+            const snapshotData = await this.fetchJsonMetadata(snapshotFileName);
+            const snapshotSigned = Snapshot.fromJSON(snapshotData.signed);
+            this.snapshotMetadata = new Metadata<Snapshot>(
+                snapshotSigned,
+                this.convertSignatures(snapshotData.signatures)
+            );
+
+            // Get the targets version from snapshot
+            // Access as plain object since tufjs model might not expose the meta property correctly
+            const snapshotObj = snapshotData.signed as any;
+            const targetsInfo = snapshotObj.meta?.['targets.json'];
+            const targetsVersion = targetsInfo?.version;
+            
+            // Fetch the specified targets version
+            const targetsFileName = targetsVersion ? `${targetsVersion}.targets.json` : 'targets.json';
+            const targetsData = await this.fetchJsonMetadata(targetsFileName);
+            const targetsSigned = Targets.fromJSON(targetsData.signed);
+            this.targetsMetadata = new Metadata<Targets>(
+                targetsSigned,
+                this.convertSignatures(targetsData.signatures)
+            );
+
+            // Fetch delegated targets if they exist in the snapshot metadata
+            await this.loadDelegatedTargetsFromRemote();
+        } catch (error) {
+            console.error("Error loading remote TUF metadata:", error);
+            throw new Error(`Failed to load remote TUF metadata: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    
+    // Fetch the latest root metadata following the TUF workflow
+    private async fetchLatestRoot(): Promise<any> {
+        let currentVersion = 1; // Start at version 1
+        let latestRoot = null;
+        
+        while (true) {
+            try {
+                // Try to fetch the next version
+                const nextVersion = currentVersion + 1;
+                const rootData = await this.fetchJsonMetadata(`${nextVersion}.root.json`, false);
+                
+                if (rootData) {
+                    // We found a valid next version
+                    latestRoot = rootData;
+                    currentVersion = nextVersion;
+                } else {
+                    // No higher version exists, use the current one
+                    break;
+                }
+            } catch (error) {
+                // If we get a 404, we've reached the highest version
+                break;
+            }
+        }
+        
+        // If we didn't find any root version, try to fetch the unversioned root.json
+        if (!latestRoot) {
+            latestRoot = await this.fetchJsonMetadata('root.json');
+        }
+        
+        if (!latestRoot) {
+            throw new Error('Could not find any valid root metadata');
+        }
+        
+        return latestRoot;
+    }
+
+    // Load delegated targets from remote
+    private async loadDelegatedTargetsFromRemote(): Promise<void> {
+        if (!this.snapshotMetadata?.signed) {
+            return;
+        }
+
+        const snapshot = this.snapshotMetadata.signed;
+        const metaKeys = Object.keys(snapshot.meta || {});
+
+        // Filter for delegated roles
+        const delegatedRoles = metaKeys.filter(key => {
+            // Skip top-level metadata files
+            if (['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'].includes(key)) {
+                return false;
+            }
+
+            // Must be a JSON file
+            return key.endsWith('.json');
+        });
+
+        // Only log if we found delegated roles
+        if (delegatedRoles.length > 0) {
+            console.log(`Processing ${delegatedRoles.length} delegated role(s): ${delegatedRoles.join(', ')}`);
+        }
+
+        // Process each delegated role
+        for (const role of delegatedRoles) {
+            try {
+                // Get version information from snapshot
+                const roleInfo = snapshot.meta[role];
+                const roleVersion = roleInfo?.version;
+                
+                // Use versioned filename if available
+                const roleName = role.replace('.json', '');
+                const roleFileName = roleVersion ? `${roleVersion}.${role}` : role;
+                
+                const delegatedData = await this.fetchJsonMetadata(roleFileName);
+                if (delegatedData) {
+                    const delegatedSigned = Targets.fromJSON(delegatedData.signed);
+                    this.delegatedTargetsMetadata.set(
+                        roleName,
+                        new Metadata<Targets>(
+                            delegatedSigned,
+                            this.convertSignatures(delegatedData.signatures)
+                        )
+                    );
+                }
+            } catch (e) {
+                // Log error but continue processing other roles
+                console.error(`Error processing delegated role ${role}:`, e);
+            }
+        }
+
+        // Log final summary
+        const loadedRoles = Array.from(this.delegatedTargetsMetadata.keys());
+        if (loadedRoles.length > 0) {
+            console.log(`Successfully loaded delegated role(s): ${loadedRoles.join(', ')}`);
+        }
+    }
+
+    async initializeFromLocal(): Promise<void> {
         try {
             // Before doing anything, check if metadata directory exists
             if (!fs.existsSync(METADATA_FS_PATH)) {
@@ -78,7 +256,7 @@ export class TufRepository {
         }
     }
 
-    // Load delegated targets from snapshot metadata
+    // Load delegated targets from local filesystem
     private async loadDelegatedTargets(): Promise<void> {
         if (!this.snapshotMetadata?.signed) {
             return;
@@ -175,6 +353,96 @@ export class TufRepository {
         return result;
     }
 
+    // Fetch JSON metadata from remote URL
+    private async fetchJsonMetadata(fileName: string, throwOnError: boolean = true): Promise<any> {
+        try {
+            if (!this.remoteUrl) {
+                throw new Error('Remote URL not provided');
+            }
+
+            // First try direct access
+            let url = new URL(fileName, this.remoteUrl).toString();
+            console.log(`Fetching metadata from: ${url}`);
+            
+            try {
+                const response = await fetch(url, { 
+                    next: { revalidate: 0 }, // Don't cache the response
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`Successfully fetched ${fileName} from ${url}`);
+                    return data;
+                }
+                
+                // If we got a CORS error or other issue, try using the proxy
+                console.warn(`Failed to fetch ${fileName} from ${url}: ${response.status} ${response.statusText}`);
+                
+                // Try the proxy
+                const parsedUrl = new URL(this.remoteUrl);
+                const proxyUrl = `/api/tuf-metadata?url=${encodeURIComponent(this.remoteUrl)}&file=${encodeURIComponent(fileName)}`;
+                
+                console.log(`Trying proxy: ${proxyUrl}`);
+                
+                const proxyResponse = await fetch(proxyUrl, {
+                    next: { revalidate: 0 }
+                });
+                
+                if (!proxyResponse.ok) {
+                    if (throwOnError) {
+                        throw new Error(`Failed to fetch ${fileName} through proxy: ${proxyResponse.status} ${proxyResponse.statusText}`);
+                    } else {
+                        return null;
+                    }
+                }
+                
+                const data = await proxyResponse.json();
+                console.log(`Successfully fetched ${fileName} through proxy`);
+                return data;
+            } catch (error) {
+                console.warn(`Error fetching ${fileName} from ${url}:`, error);
+                
+                // Try another proxy approach - direct fetch might fail due to CORS
+                const fallbackProxyUrl = `/proxy/${new URL(url).host}${new URL(url).pathname}`;
+                console.log(`Trying fallback proxy: ${fallbackProxyUrl}`);
+                
+                try {
+                    const fallbackResponse = await fetch(fallbackProxyUrl, {
+                        next: { revalidate: 0 }
+                    });
+                    
+                    if (!fallbackResponse.ok) {
+                        if (throwOnError) {
+                            throw new Error(`Failed to fetch ${fileName} through fallback proxy: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+                        } else {
+                            return null;
+                        }
+                    }
+                    
+                    const data = await fallbackResponse.json();
+                    console.log(`Successfully fetched ${fileName} through fallback proxy`);
+                    return data;
+                } catch (fallbackError) {
+                    if (throwOnError) {
+                        throw new Error(`Failed to fetch ${fileName} through all methods: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+                    } else {
+                        return null;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Error fetching metadata file ${fileName}:`, error);
+            if (throwOnError) {
+                throw error;
+            } else {
+                return null;
+            }
+        }
+    }
+
     private async readJsonMetadataFile(fileName: string): Promise<any> {
         try {
             const filePath = path.join(METADATA_FS_PATH, fileName);
@@ -189,20 +457,6 @@ export class TufRepository {
             return JSON.parse(fileContent);
         } catch (error) {
             console.error(`Error reading metadata file ${fileName}:`, error);
-            throw error;
-        }
-    }
-
-    // Legacy fetch method as fallback
-    private async fetchJsonMetadata(fileName: string): Promise<any> {
-        try {
-            const response = await fetch(`${METADATA_BASE_URL}/${fileName}`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch ${fileName}: ${response.statusText}`);
-            }
-            return await response.json();
-        } catch (error) {
-            console.error(`Error fetching ${fileName}:`, error);
             throw error;
         }
     }
@@ -440,7 +694,8 @@ export class TufRepository {
         if (!this.rootMetadata) {
             return {};
         }
-        
+
+        // Convert the keys to a plain object for compatibility
         const keysObj: Record<string, any> = {};
         
         Object.entries(this.rootMetadata.signed.keys).forEach(([keyId, keyValue]) => {
@@ -449,20 +704,29 @@ export class TufRepository {
 
         return keysObj;
     }
+
 }
 
 function formatExpirationDate(dateString: string): string {
     try {
-        const date = parseISO(dateString);
-        // Remove seconds from format to avoid hydration mismatch
-        return format(date, "MMM d, yyyy HH:mm 'UTC'");
-    } catch (e) {
+        return new Date(dateString).toLocaleString();
+    } catch (error) {
+        console.error('Error formatting date:', error);
         return dateString;
     }
 }
 
-export const createTufRepository = async (): Promise<TufRepository> => {
-    const repository = new TufRepository();
-    await repository.initialize();
-    return repository;
+export const createTufRepository = async (remoteUrl?: string): Promise<TufRepository> => {
+    try {
+        // Create a new TUF repository instance
+        const repository = new TufRepository(METADATA_BASE_URL, remoteUrl);
+        
+        // Initialize the repository
+        await repository.initialize();
+        
+        return repository;
+    } catch (error) {
+        console.error('Error creating TUF repository:', error);
+        throw error;
+    }
 };
