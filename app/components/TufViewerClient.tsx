@@ -1,267 +1,140 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import RoleTable from './RoleTable';
-import RepoInfo from './RepoInfo';
-import RootVersionSelector from './RootVersionSelector';
-import { RoleInfo } from '../utils/types';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { loadTufDataAction } from '../actions';
+import { createTufRepository } from '../utils/tufClient';
+import RoleTable from './RoleTable';
+import TufTreeViews from './TufTreeViews';
+import { RoleInfo } from '../utils/types';
 
-// Styled components
-const SectionDivider = styled.div`
-  height: 1px;
-  background-color: var(--border);
-  margin: 2rem 0;
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 `;
 
-const SectionTitle = styled.h2`
-  font-size: 1.5rem;
-  font-weight: 600;
+const Header = styled.div`
+  margin-bottom: 2rem;
+`;
+
+const Title = styled.h1`
+  font-size: 2rem;
   margin-bottom: 1rem;
 `;
 
-interface TufViewerClientProps {
-    roles: RoleInfo[];
-    version: string;
-    error: string | null;
-    initialRemoteUrl?: string;
-}
+const Description = styled.p`
+  color: var(--fg-subtle);
+  margin-bottom: 2rem;
+`;
 
-export default function TufViewerClient({ 
-    roles: initialRoles, 
-    version, 
-    error: initialError,
-    initialRemoteUrl
-}: TufViewerClientProps) {
-    const [roles, setRoles] = useState<RoleInfo[]>(initialRoles);
-    const [error, setError] = useState<string | null>(initialError);
-    const [remoteUrl, setRemoteUrl] = useState<string | undefined>(initialRemoteUrl);
-    const [loading, setLoading] = useState(false);
-    
-    // Handle remote URL changes
-    const handleRemoteUrlChange = async (url: string) => {
-        setLoading(true);
-        setError(null);
-        
-        try {
-            const result = await loadTufDataAction(url);
-            if (result.error) {
-                setError(result.error);
-            } else {
-                setRoles(result.roles);
-                setRemoteUrl(url);
-            }
-        } catch (err) {
-            setError(`Failed to load data from ${url}: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    if (loading) {
-        return (
-            <div style={{ 
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '70vh',
-                textAlign: 'center'
-            }}>
-                <div style={{ maxWidth: '500px', width: '100%' }}>
-                    <h2 style={{ marginBottom: '1rem' }}>Loading TUF Repository</h2>
-                    <p style={{ marginBottom: '2rem' }}>Please wait while we fetch metadata from the remote repository...</p>
-                    
-                    <div style={{
-                        display: 'inline-block',
-                        width: '50px',
-                        height: '50px',
-                        border: '3px solid rgba(0, 112, 243, 0.2)',
-                        borderRadius: '50%',
-                        borderTop: '3px solid #0070f3',
-                        animation: 'spin 1s linear infinite',
-                    }}></div>
-                    
-                    <style jsx>{`
-                        @keyframes spin {
-                            0% { transform: rotate(0deg); }
-                            100% { transform: rotate(360deg); }
-                        }
-                    `}</style>
-                </div>
-            </div>
-        );
+const InputContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg-subtle);
+  color: var(--fg);
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: var(--accent-hover);
+  }
+
+  &:disabled {
+    background: var(--bg-subtle);
+    cursor: not-allowed;
+  }
+`;
+
+const ErrorMessage = styled.div`
+  color: var(--error);
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--error-bg);
+  border-radius: 0.25rem;
+`;
+
+const LoadingMessage = styled.div`
+  color: var(--fg-subtle);
+  margin-top: 1rem;
+`;
+
+const TufViewerClient: React.FC = () => {
+  const [remoteUrl, setRemoteUrl] = useState<string>('');
+  const [roles, setRoles] = useState<RoleInfo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const repository = await createTufRepository(remoteUrl);
+      const roleInfo = repository.getRoleInfo();
+      setRoles(roleInfo);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
     }
-    
-    if (error) {
-        return (
-            <div style={{ 
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '70vh',
-                textAlign: 'center'
-            }}>
-                <div style={{ maxWidth: '500px', width: '100%' }}>
-                    <h2 style={{ marginBottom: '1rem' }}>Error Loading TUF Repository</h2>
-                    <p style={{ color: 'red', marginBottom: '1rem' }}>{error}</p>
-                    
-                    <div style={{ 
-                        textAlign: 'left', 
-                        marginBottom: '2rem',
-                        padding: '1rem',
-                        backgroundColor: '#f8f8f8',
-                        borderRadius: '4px'
-                    }}>
-                        <p>Please check:</p>
-                        <ul style={{ paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
-                            <li>TUF metadata files exist in the {remoteUrl ? 'remote repository' : 'public/metadata directory'}</li>
-                            <li>The files contain valid JSON in the TUF format</li>
-                            <li>The browser console for any network or JavaScript errors</li>
-                            {remoteUrl && <li>CORS is properly configured on the remote server</li>}
-                        </ul>
-                    </div>
-                    
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const input = (e.target as HTMLFormElement).querySelector('input');
-                        if (input && input.value) {
-                            let url = input.value.trim();
-                            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                                url = 'https://' + url;
-                            }
-                            if (!url.endsWith('/')) {
-                                url += '/';
-                            }
-                            handleRemoteUrlChange(url);
-                        }
-                    }} style={{ width: '100%' }}>
-                        <input 
-                            type="url" 
-                            placeholder="Enter URL (e.g., https://tuf-repo-cdn.sigstore.dev/)" 
-                            defaultValue={remoteUrl || ''}
-                            style={{
-                                padding: '0.75rem 1rem',
-                                width: '100%',
-                                borderRadius: '4px',
-                                border: '1px solid #ccc',
-                                marginBottom: '1rem',
-                                fontSize: '1rem'
-                            }}
-                            required 
-                        />
-                        <button 
-                            type="submit"
-                            style={{
-                                padding: '0.75rem 1.5rem',
-                                backgroundColor: '#0070f3',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                fontSize: '1rem',
-                                fontWeight: '500',
-                                cursor: 'pointer',
-                                width: '100%'
-                            }}
-                        >
-                            Try Again
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
-    
-    // If we have no roles and no error, this is likely the first load
-    // Show only the URL input form
-    if (roles.length === 0) {
-        return (
-            <div style={{ 
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '70vh',
-                textAlign: 'center'
-            }}>
-                <div style={{ maxWidth: '500px', width: '100%' }}>
-                    <h2 style={{ marginBottom: '1rem' }}>TUF Repository Viewer</h2>
-                    <p style={{ marginBottom: '2rem' }}>Please provide a remote TUF repository URL to load metadata.</p>
-                    
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const input = (e.target as HTMLFormElement).querySelector('input');
-                        if (input && input.value) {
-                            let url = input.value.trim();
-                            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                                url = 'https://' + url;
-                            }
-                            if (!url.endsWith('/')) {
-                                url += '/';
-                            }
-                            handleRemoteUrlChange(url);
-                        }
-                    }} style={{ width: '100%' }}>
-                        <input 
-                            type="url" 
-                            placeholder="Enter URL (e.g., https://tuf-repo-cdn.sigstore.dev/)" 
-                            defaultValue={remoteUrl || ''}
-                            style={{
-                                padding: '0.75rem 1rem',
-                                width: '100%',
-                                borderRadius: '4px',
-                                border: '1px solid #ccc',
-                                marginBottom: '1rem',
-                                fontSize: '1rem'
-                            }}
-                            required 
-                        />
-                        <button 
-                            type="submit"
-                            style={{
-                                padding: '0.75rem 1.5rem',
-                                backgroundColor: '#0070f3',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                fontSize: '1rem',
-                                fontWeight: '500',
-                                cursor: 'pointer',
-                                width: '100%'
-                            }}
-                        >
-                            Load Repository
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
+  };
 
-    // Get spec_version from the first role (assuming it's the same for all)
-    const specVersion = roles[0]?.specVersion;
+  return (
+    <Container>
+      <Header>
+        <Title>TUF Metadata Visualizer</Title>
+        <Description>
+          Visualize TUF metadata from a remote repository or local files.
+        </Description>
+      </Header>
 
-    return (
-        <div className="space-y-4">
-            {specVersion && (
-                <div className="text-sm text-gray-600">
-                    TUF Specification Version: {specVersion}
-                </div>
-            )}
+      <form onSubmit={handleSubmit}>
+        <InputContainer>
+          <Input
+            type="text"
+            value={remoteUrl}
+            onChange={(e) => setRemoteUrl(e.target.value)}
+            placeholder="Enter remote repository URL"
+          />
+          <Button type="submit" disabled={loading || !remoteUrl}>
+            {loading ? 'Loading...' : 'Load Metadata'}
+          </Button>
+        </InputContainer>
+      </form>
 
-            {/* Current TUF Roles Section */}
-            <SectionTitle>TUF Repository Roles</SectionTitle>
-            <RoleTable roles={roles} />
-            
-            {/* Root Version Diff Section */}
-            <SectionDivider />
-            <SectionTitle>Root Version Diff</SectionTitle>
-            <RootVersionSelector remoteUrl={remoteUrl} />
-        </div>
-    );
-}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {loading && <LoadingMessage>Loading metadata...</LoadingMessage>}
+
+      {roles.length > 0 && (
+        <>
+          <TufTreeViews roles={roles} />
+          <RoleTable roles={roles} />
+        </>
+      )}
+    </Container>
+  );
+};
+
+export default TufViewerClient;
