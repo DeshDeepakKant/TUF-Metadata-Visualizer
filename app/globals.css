@@ -16,13 +16,6 @@
   --warning-light: #fef3c7;
   --error: #dc2626;
   --error-light: #fee2e2;
-  
-  /* Added CSS variables for tree components */
-  --fg: var(--text);
-  --fg-subtle: #666;
-  --bg: var(--background);
-  --bg-subtle: var(--background-subtle);
-  --link: var(--primary);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,10 +33,6 @@
     --warning-light: #382604;
     --error: #ef4444;
     --error-light: #3c1616;
-    
-    /* Updated CSS variables for tree components in dark mode */
-    --fg: var(--text);
-    --fg-subtle: #aaa;
   }
 }
 
