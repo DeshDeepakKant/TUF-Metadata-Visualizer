@@ -29,7 +29,7 @@ const NodeContent = styled.div`
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
-
+  
   &:hover {
     background-color: var(--hover);
   }
@@ -48,7 +48,7 @@ const ToggleIcon = styled.span`
 const NodeLabel = styled.span<{ $isColor?: string }>`
   color: ${props => props.$isColor || 'inherit'};
   font-weight: ${props => props.$isColor ? '600' : 'normal'};
-
+  
   // Apply specific styling for highlighted nodes
   ${props => props.$isColor && `
     background-color: ${props.$isColor}20; // 20 is for ~12% opacity
@@ -68,7 +68,7 @@ const NodeLink = styled.a`
   color: var(--link);
   text-decoration: none;
   font-size: 0.85em;
-
+  
   &:hover {
     text-decoration: underline;
   }
@@ -90,14 +90,14 @@ interface TreeViewProps {
 }
 
 // Helper component for a single node
-const TreeNodeComponent: React.FC<{ node: TreeNodeType, level: number, expandTopLevel?: boolean }> = ({
-  node,
-  level,
-  expandTopLevel
+const TreeNodeComponent: React.FC<{ node: TreeNodeType, level: number, expandTopLevel?: boolean }> = ({ 
+  node, 
+  level, 
+  expandTopLevel 
 }) => {
   const [expanded, setExpanded] = useState(expandTopLevel && level === 0);
   const hasChildren = node.children && node.children.length > 0;
-
+  
   return (
     <TreeNode>
       <NodeContent onClick={() => hasChildren && setExpanded(!expanded)}>
@@ -110,15 +110,15 @@ const TreeNodeComponent: React.FC<{ node: TreeNodeType, level: number, expandTop
         {node.description && <NodeDescription>{node.description}</NodeDescription>}
         {node.link && <NodeLink href={node.link} target="_blank" onClick={e => e.stopPropagation()}>json</NodeLink>}
       </NodeContent>
-
+      
       {expanded && hasChildren && (
         <TreeBranch>
           {node.children!.map((child) => (
-            <TreeNodeComponent
-              key={child.id}
-              node={child}
-              level={level + 1}
-              expandTopLevel={expandTopLevel}
+            <TreeNodeComponent 
+              key={child.id} 
+              node={child} 
+              level={level + 1} 
+              expandTopLevel={expandTopLevel} 
             />
           ))}
         </TreeBranch>
@@ -132,11 +132,11 @@ const TreeView: React.FC<TreeViewProps> = ({ treeData, title, expandTopLevel = f
     <TreeContainer>
       {title && <h3>{title}</h3>}
       {treeData.map((node) => (
-        <TreeNodeComponent
-          key={node.id}
-          node={node}
-          level={0}
-          expandTopLevel={expandTopLevel}
+        <TreeNodeComponent 
+          key={node.id} 
+          node={node} 
+          level={0} 
+          expandTopLevel={expandTopLevel} 
         />
       ))}
     </TreeContainer>
