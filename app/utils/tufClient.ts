@@ -474,19 +474,6 @@ export class TufRepository {
             return keyids.map(keyid => keyid.substring(0, 8));
         };
 
-        // Helper to create the correct JSON link based on availability of remote URL
-        const createJsonLink = (fileName: string, version?: number): string => {
-            if (this.remoteUrl) {
-                // If we have a remote URL, use it for the JSON link
-                // Include version number in filename if available (for versioned files)
-                const versionedFileName = version ? `${version}.${fileName}` : fileName;
-                return new URL(versionedFileName, this.remoteUrl).toString();
-            } else {
-                // Otherwise use the local path
-                return `${METADATA_BASE_URL}/${fileName}`;
-            }
-        };
-
         // Helper to convert TUF-js delegations to our format
         const convertDelegations = (delegations: any) => {
             if (!delegations) return undefined;
@@ -508,10 +495,6 @@ export class TufRepository {
             let roles = [];
 
             // Handle different formats of delegations.roles (array or object)
-            // Note: The TUF spec allows for different formats of delegations:
-            // 1. In the root.json, delegations.roles is usually an object with role names as keys
-            // 2. In targets.json, delegations.roles is an array with each element containing a 'name' field
-            // We normalize both formats to a consistent array structure for easier handling in the UI
             if (delegations.roles) {
                 if (Array.isArray(delegations.roles)) {
                     // If it's already an array, map it
@@ -550,7 +533,7 @@ export class TufRepository {
                     total: rootRole.keyIDs.length,
                     keyids: transformKeyIds(rootRole.keyIDs)
                 },
-                jsonLink: createJsonLink('root.json', root.version),
+                jsonLink: `${METADATA_BASE_URL}/root.json`,
                 version: root.version,
                 specVersion: root.specVersion
             });
@@ -569,7 +552,7 @@ export class TufRepository {
                         total: timestampRole.keyIDs.length,
                         keyids: transformKeyIds(timestampRole.keyIDs)
                     },
-                    jsonLink: createJsonLink('timestamp.json'),
+                    jsonLink: `${METADATA_BASE_URL}/timestamp.json`,
                     version: timestamp.version,
                     specVersion: timestamp.specVersion
                 });
@@ -589,7 +572,7 @@ export class TufRepository {
                         total: snapshotRole.keyIDs.length,
                         keyids: transformKeyIds(snapshotRole.keyIDs)
                     },
-                    jsonLink: createJsonLink('snapshot.json', snapshot.version),
+                    jsonLink: `${METADATA_BASE_URL}/snapshot.json`,
                     version: snapshot.version,
                     specVersion: snapshot.specVersion
                 });
@@ -609,7 +592,7 @@ export class TufRepository {
                         total: targetsRole.keyIDs.length,
                         keyids: transformKeyIds(targetsRole.keyIDs)
                     },
-                    jsonLink: createJsonLink('targets.json', targets.version),
+                    jsonLink: `${METADATA_BASE_URL}/targets.json`,
                     version: targets.version,
                     specVersion: targets.specVersion,
                     // Include targets data for nested display
@@ -619,38 +602,63 @@ export class TufRepository {
             }
         }
 
-        // Add all delegated roles from targets.json
+        // Add registry.npmjs.org role from targets delegations
         if (this.targetsMetadata?.signed?.delegations) {
             const targets = this.targetsMetadata.signed;
             const delegations = convertDelegations(targets.delegations);
 
-            if (delegations && delegations.roles && Array.isArray(delegations.roles)) {
-                // Process each delegation role
-                for (const delegationRole of delegations.roles) {
-                    const roleName = delegationRole.name;
-                    
+            if (delegations && delegations.roles) {
+                const registryRole = delegations.roles.find((role: any) => role.name === 'registry.npmjs.org');
+
+                if (registryRole) {
                     // Find the delegated metadata if it exists
-                    const delegatedMetadata = this.delegatedTargetsMetadata.get(roleName);
-                    const delegatedExpires = delegatedMetadata?.signed?.expires || targets.expires;
-                    const delegatedVersion = delegatedMetadata?.signed?.version || targets.version;
-                    const delegatedSpecVersion = delegatedMetadata?.signed?.specVersion || targets.specVersion;
+                    const registryMetadata = this.delegatedTargetsMetadata.get('registry.npmjs.org');
+                    const registryExpires = registryMetadata?.signed?.expires || targets.expires;
+                    const registryVersion = registryMetadata?.signed?.version || targets.version;
+                    const registrySpecVersion = registryMetadata?.signed?.specVersion || targets.specVersion;
 
                     roles.push({
-                        role: roleName,
-                        expires: formatExpirationDate(delegatedExpires),
+                        role: 'registry.npmjs.org',
+                        expires: formatExpirationDate(registryExpires),
                         signers: {
-                            required: delegationRole.threshold,
-                            total: delegationRole.keyids.length,
-                            keyids: transformKeyIds(delegationRole.keyids)
+                            required: registryRole.threshold,
+                            total: registryRole.keyids.length,
+                            keyids: transformKeyIds(registryRole.keyids)
                         },
-                        jsonLink: createJsonLink(`${roleName}.json`, delegatedVersion),
-                        version: delegatedVersion,
-                        specVersion: delegatedSpecVersion,
-                        targets: this.convertToPlainObject(delegatedMetadata?.signed?.targets || {})
+                        jsonLink: `${METADATA_BASE_URL}/registry.npmjs.org.json`,
+                        version: registryVersion,
+                        specVersion: registrySpecVersion,
+                        targets: this.convertToPlainObject(registryMetadata?.signed?.targets || {})
                     });
                 }
             }
         }
+
+        // Delegated targets roles (except registry.npmjs.org which we already added)
+        Array.from(this.delegatedTargetsMetadata.entries()).forEach(([roleName, metadata]) => {
+            // Skip registry.npmjs.org as we already added it
+            if (roleName === 'registry.npmjs.org') return;
+
+            const signed = metadata.signed;
+            const role = root.roles[roleName];
+            if (role) {
+                roles.push({
+                    role: roleName,
+                    expires: formatExpirationDate(signed.expires),
+                    signers: {
+                        required: role.threshold,
+                        total: role.keyIDs.length,
+                        keyids: transformKeyIds(role.keyIDs)
+                    },
+                    jsonLink: `${METADATA_BASE_URL}/${roleName}.json`,
+                    version: signed.version,
+                    specVersion: signed.specVersion,
+                    // Include targets data for nested display
+                    targets: this.convertToPlainObject(signed.targets),
+                    delegations: convertDelegations(signed.delegations)
+                });
+            }
+        });
 
         return roles;
     }
