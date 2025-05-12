@@ -49,27 +49,18 @@ const NestedTableCell = styled.td`
   border-bottom: 1px solid var(--border);
 `;
 
-const ExpandButton = styled.button<{ $expanded: boolean }>`
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.75rem;
-    margin-right: 0.5rem;
-    padding: 0.25rem;
-    transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
-    transition: transform 0.2s ease;
-`;
-
-const RoleName = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const ExpandableArea = styled.div`
-  display: flex;
-  align-items: center;
+const ExpandButton = styled.button<{ $expanded?: boolean }>`
+  background: none;
+  border: none;
   cursor: pointer;
+  font-size: 0.75rem;
+  margin-right: 0.5rem;
+  padding: 0.25rem;
+  transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
+  transition: transform 0.2s ease;
 `;
+
+
 
 interface RoleTableProps {
     roles: RoleInfo[];
@@ -114,7 +105,8 @@ const isOnlineKey = (keyid: string): boolean => {
 };
 
 export default function RoleTable({ roles }: RoleTableProps) {
-    const [expandedRoles, setExpandedRoles] = useState<string[]>([]);
+    const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
 
     if (!roles || roles.length === 0) {
         return <div>No roles found.</div>;
@@ -131,14 +123,12 @@ export default function RoleTable({ roles }: RoleTableProps) {
         );
     };
 
-    const handleExpand = (roleName: string) => {
-        setExpandedRoles(prev => {
-            if (prev.includes(roleName)) {
-                return prev.filter(name => name !== roleName);
-            } else {
-                return [...prev, roleName];
-            }
-        });
+    const handleRowExpand = (roleName: string) => {
+        if (expandedRow === roleName) {
+            setExpandedRow(null);
+        } else {
+            setExpandedRow(roleName);
+        }
     };
 
     // Find delegation info for a specific delegated role
@@ -167,8 +157,8 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                 <TableCell>
                                     {hasExpandableContent(role) && (
                                         <ExpandButton
-                                            $expanded={expandedRoles.includes(role.role)}
-                                            onClick={() => handleExpand(role.role)}
+                                            $expanded={expandedRow === role.role}
+                                            onClick={() => handleRowExpand(role.role)}
                                         >
                                             ▶
                                         </ExpandButton>
@@ -218,7 +208,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                             </TableRow>
 
                             {/* Show targets content for any role with targets data when expanded */}
-                            {role.targets && Object.keys(role.targets).length > 0 && expandedRoles.includes(role.role) && (
+                            {role.targets && Object.keys(role.targets).length > 0 && expandedRow === role.role && (
                                 <TableRow>
                                     <TableCell colSpan={5}>
                                         <NestedTableContainer>
@@ -243,7 +233,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
 
                             {/* For delegated roles, show delegation info if available */}
                             {role.role !== 'root' && role.role !== 'timestamp' && role.role !== 'snapshot' && role.role !== 'targets' && 
-                             expandedRoles.includes(role.role) && (
+                             expandedRow === role.role && (
                                 <TableRow>
                                     <TableCell colSpan={5}>
                                         <NestedTableContainer>
