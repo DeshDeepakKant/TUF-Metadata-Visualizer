@@ -1,85 +1,70 @@
 # TUF Metadata Visualizer
 
-This repository contains a web application to visualize TUF (The Update Framework) metadata. It provides a user-friendly interface to explore TUF roles, keys, and signing requirements.
+A web-based tool to explore and visualize TUF (The Update Framework) metadata.
 
-## Features
+**Live URL:** [https://tuf-visualizer.netlify.app/](https://tuf-visualizer.netlify.app/)
 
-- View TUF roles (root, targets, snapshot, timestamp)
-- See signers for each role with proper username display
-- Visualize delegated targets
-- Check expiration dates for each role
-- View thresholds and signing requirements
-- Direct links to JSON metadata files
+## What is TUF? What is this tool?
 
-## Implementation Details
+**TUF (The Update Framework)** is a flexible and secure framework for software update systems, designed to protect against a wide range of attacks. It is widely used in open source and cloud-native ecosystems to ensure the integrity and security of software updates.
 
-This application uses:
+**TUF Metadata Visualizer** is a user-friendly web application that allows you to load, inspect, and understand TUF metadata repositories. It is designed for both TUF implementers and users who want to audit or explore TUF-secured repositories.
 
-- **TUF-JS Models**: We use the built-in models from `tuf-js` to parse and handle TUF metadata. This ensures correctness with the TUF specification and keeps our codebase smaller and more maintainable.
-- **Real-life Metadata**: We use real-world metadata from the Sigstore TUF repository that demonstrates thresholds > 1 and multiple allowed signers per role.
+## What does it do? (Features)
 
-## Sample Metadata
+- Load and visualize TUF metadata from any public TUF repository URL
+- Choose from sample repositories for quick exploration
+- View TUF roles (root, targets, snapshot, timestamp) in a table with expandable rows
+- See signers, thresholds, expiration dates, and delegation details
+- Compare different root versions with a difference view
+- Explore the repository structure with interactive tree visualizations
+- Direct links to raw JSON metadata files
 
-The metadata files were sourced from:
+## How does it work? (Guide to Use)
 
-- [12.root.json](https://tuf-repo-cdn.sigstore.dev/12.root.json)
-- [timestamp.json](https://tuf-repo-cdn.sigstore.dev/timestamp.json)
-- [159.snapshot.json](https://tuf-repo-cdn.sigstore.dev/159.snapshot.json)
-- [11.targets.json](https://tuf-repo-cdn.sigstore.dev/11.targets.json)
+1. **Enter a TUF repository URL** or select one of the provided sample repositories (e.g., Sigstore, TUF Demo).
+2. **Visualize the metadata**:
+   - The main table shows all top-level TUF roles. Click any row to expand and see more details.
+   - Use the "Root Version Diff" section to compare different root versions and see what changed.
+   - Explore the "TUF Metadata Visualizations" section for interactive trees of roles, delegations, and targets.
+3. **Inspect details**: Click on any "json" link to view the raw metadata file.
 
-The metadata includes additional delegated targets for:
-- registry.npmjs.org
+## Implementation Details & Technologies Used
 
-## Getting Started
+- **TUF-JS**: Uses the official [tuf-js](https://github.com/theupdateframework/tuf-js) library for parsing and validating TUF metadata.
+- **Next.js**: Built with [Next.js](https://nextjs.org/) for fast, modern web UI.
+- **React**: Uses [React](https://reactjs.org/) for interactive components.
+- **Styled Components**: For modular, themeable styling.
+- **Real-world metadata**: Demonstrates with real metadata from Sigstore and other public TUF repositories.
+
+## Getting Started / Local Setup / Contributing
 
 ### Prerequisites
-
 - Node.js 18.17.0 or later
 
-### Installation
-
-1. Clone the repository
+### Local Setup
+1. Clone the repository:
    ```bash
    git clone https://github.com/DeshDeepakKant/TUF-Metadata-Visualizer.git
    cd TUF-Metadata-Visualizer
    ```
-
-2. Install dependencies
+2. Install dependencies:
    ```bash
    npm install
    ```
-
-3. Run the development server
+3. Run the development server:
    ```bash
    npm run dev
    ```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application
+### Contributing
+- Contributions are welcome! Please open issues or pull requests for improvements, bug fixes, or new features.
 
-## Usage
+## Contact
+We're on Slack ([link](https://app.slack.com/client/T08PSQ7BQ/C08FNCGB5N2))
 
-The application expects TUF metadata files to be located in the `public/metadata` directory:
-- root.json
-- timestamp.json
-- snapshot.json
-- targets.json
-
-Sample metadata files are included in the repository for demonstration purposes.
-
-## Technologies Used
-
-- [Next.js](https://nextjs.org/) - React framework for server-rendered applications
-- [React](https://reactjs.org/) - UI library
-- [TUF-JS](https://github.com/theupdateframework/tuf-js) - JavaScript implementation of The Update Framework
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- The Update Framework team for creating the TUF specification
+Feel free to file issues if anything is unclear: this is a new project so docs are still lacking.
 
 
-![Uploading image.png…]()
 
