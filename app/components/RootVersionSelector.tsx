@@ -56,6 +56,7 @@ const SelectorGroup = styled.div`
 const SelectorLabel = styled.label`
   font-weight: 500;
   margin-bottom: 0.5rem;
+  color: #fff;
 `;
 
 const SelectorSelect = styled.select`
@@ -63,6 +64,16 @@ const SelectorSelect = styled.select`
   border: 1px solid var(--border);
   border-radius: 4px;
   background-color: var(--background);
+  color: #fff;
+  /* For Chrome, Safari, Edge, Opera */
+  &::-webkit-input-placeholder { color: #fff; }
+  &::-webkit-select-placeholder { color: #fff; }
+  /* For Firefox */
+  &::-moz-placeholder { color: #fff; }
+  &::-moz-placeholder { color: #fff; }
+  &::-ms-input-placeholder { color: #fff; }
+  /* Dropdown arrow for most browsers */
+  option { color: #000; background: var(--background); }
 `;
 
 const SelectorButton = styled.button`
