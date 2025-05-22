@@ -116,4 +116,30 @@ export const SignersList = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+`;
+
+export const GitHubLink = styled.a`
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  text-decoration: none;
+  margin-left: auto;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--hover);
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
+export const HeaderContent = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
 `; 
