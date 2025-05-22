@@ -8,6 +8,7 @@ import { RoleInfo } from '../utils/types';
 import styled from 'styled-components';
 import { loadTufDataAction } from '../actions';
 import TufTreeViews from './TufTreeViews';
+import ExampleUrls from './ExampleUrls';
 
 // Styled components
 const SectionDivider = styled.div`
@@ -240,6 +241,8 @@ export default function TufViewerClient({
                             Load Repository
                         </button>
                     </form>
+
+                    <ExampleUrls onUrlClick={handleRemoteUrlChange} />
                 </div>
             </div>
         );
