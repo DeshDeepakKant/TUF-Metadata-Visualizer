@@ -56,11 +56,14 @@ const ExpandButton = styled.button<{ $expanded?: boolean }>`
   font-size: 0.75rem;
   margin-right: 0.5rem;
   padding: 0.25rem;
+  color: #fff;
   transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0)'};
   transition: transform 0.2s ease;
 `;
 
-
+const ClickableTableRow = styled(TableRow)<{ $expandable?: boolean }>`
+  ${props => props.$expandable ? 'cursor: pointer;' : ''}
+`;
 
 interface RoleTableProps {
     roles: RoleInfo[];
@@ -153,12 +156,28 @@ export default function RoleTable({ roles }: RoleTableProps) {
                 <tbody>
                     {roles.map((role) => (
                         <React.Fragment key={role.role}>
-                            <TableRow>
+                            <ClickableTableRow
+                                $expandable={hasExpandableContent(role)}
+                                onClick={hasExpandableContent(role) ? (e => {
+                                    // Prevent row expand if clicking a link
+                                    if ((e.target as HTMLElement).closest('a')) return;
+                                    handleRowExpand(role.role);
+                                }) : undefined}
+                                tabIndex={hasExpandableContent(role) ? 0 : undefined}
+                                onKeyDown={hasExpandableContent(role) ? (e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        handleRowExpand(role.role);
+                                    }
+                                }) : undefined}
+                            >
                                 <TableCell>
                                     {hasExpandableContent(role) && (
                                         <ExpandButton
                                             $expanded={expandedRow === role.role}
-                                            onClick={() => handleRowExpand(role.role)}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                handleRowExpand(role.role);
+                                            }}
                                         >
                                             ▶
                                         </ExpandButton>
@@ -205,7 +224,7 @@ export default function RoleTable({ roles }: RoleTableProps) {
                                         </SignerInfo>
                                     )}
                                 </TableCell>
-                            </TableRow>
+                            </ClickableTableRow>
 
                             {/* Show targets content for any role with targets data when expanded */}
                             {role.targets && Object.keys(role.targets).length > 0 && expandedRow === role.role && (
