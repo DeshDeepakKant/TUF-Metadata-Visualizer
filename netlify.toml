@@ -1,0 +1,52 @@
+# Netlify Configuration for TUF Metadata Visualizer
+# This file provides explicit deployment settings for Netlify
+
+[build]
+  # Build command
+  command = "npm run build"
+  
+  # Directory to publish (Next.js output)
+  publish = ".next"
+
+[build.environment]
+  # Node.js version
+  NODE_VERSION = "18"
+  
+  # Next.js specific settings
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Production deployment settings
+[context.production]
+  command = "npm run build"
+
+# Preview deployments (for pull requests)
+[context.deploy-preview]
+  command = "npm run build"
+
+# Branch deployments
+[context.branch-deploy]
+  command = "npm run build"
+
+# Redirect rules (if needed in future)
+# [[redirects]]
+#   from = "/api/*"
+#   to = "/.netlify/functions/:splat"
+#   status = 200
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache static assets
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Next.js Plugin (auto-detected, but explicit for clarity)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
