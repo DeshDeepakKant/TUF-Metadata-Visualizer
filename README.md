@@ -1,85 +1,69 @@
-# TUF Metadata Visualizer
+# 🔍 TUF Metadata Visualizer
 
-This repository contains a web application to visualize TUF (The Update Framework) metadata. It provides a user-friendly interface to explore TUF roles, keys, and signing requirements.
+The **TUF Metadata Visualizer** creates human-readable visual displays of TUF metadata repositories. It shows complex JSON files in a simple, interactive interface. Without this tool, you would need to read and understand raw JSON files across multiple documents. This visualizer uses tables, diagrams, and root.json comparison views to clearly show how different parts of the metadata connect. This makes auditing, reviewing changes, and verifying security much easier.
 
-## Features
+**🌐 Live URL:** [https://tuf-visualizer.netlify.app/](https://tuf-visualizer.netlify.app/)
 
-- View TUF roles (root, targets, snapshot, timestamp)
-- See signers for each role with proper username display
-- Visualize delegated targets
-- Check expiration dates for each role
-- View thresholds and signing requirements
-- Direct links to JSON metadata files
 
-## Implementation Details
+## ✨ Features & Usage
 
-This application uses:
+### Getting Started
+* Enter a TUF repository URL or select one of the provided sample repositories (e.g., Sigstore, TUF Demo).
+* Load and visualize TUF metadata from any public TUF repository URL.
 
-- **TUF-JS Models**: We use the built-in models from `tuf-js` to parse and handle TUF metadata. This ensures correctness with the TUF specification and keeps our codebase smaller and more maintainable.
-- **Real-life Metadata**: We use real-world metadata from the Sigstore TUF repository that demonstrates thresholds > 1 and multiple allowed signers per role.
+### Exploring the Metadata
+* **Main Table View**: See all TUF roles (`root`, `targets`, `snapshot`, `timestamp`, and delegations if any) with signers, thresholds, and expiration dates. Click the row to expand and view delegation details.
+* **Root Version Comparison**: Compare different root versions to see what changed between them.
+* **Tree Visualizations**: Explore interactive tree diagrams showing the repository structure, roles, and delegations.
+* **Direct Access**: Click any "json" link to view the raw metadata file for deeper inspection.
 
-## Sample Metadata
 
-The metadata files were sourced from:
-
-- [12.root.json](https://tuf-repo-cdn.sigstore.dev/12.root.json)
-- [timestamp.json](https://tuf-repo-cdn.sigstore.dev/timestamp.json)
-- [159.snapshot.json](https://tuf-repo-cdn.sigstore.dev/159.snapshot.json)
-- [11.targets.json](https://tuf-repo-cdn.sigstore.dev/11.targets.json)
-
-The metadata includes additional delegated targets for:
-- registry.npmjs.org
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18.17.0 or later
+* Node.js 18.17.0 or later
 
-### Installation
+### Local Setup
 
-1. Clone the repository
+1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/DeshDeepakKant/TUF-Metadata-Visualizer.git
    cd TUF-Metadata-Visualizer
    ```
 
-2. Install dependencies
+
+
+2. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
-3. Run the development server
+
+
+3. **Run the development server:**
+
    ```bash
    npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application
-
-## Usage
-
-The application expects TUF metadata files to be located in the `public/metadata` directory:
-- root.json
-- timestamp.json
-- snapshot.json
-- targets.json
-
-Sample metadata files are included in the repository for demonstration purposes.
-
-## Technologies Used
-
-- [Next.js](https://nextjs.org/) - React framework for server-rendered applications
-- [React](https://reactjs.org/) - UI library
-- [TUF-JS](https://github.com/theupdateframework/tuf-js) - JavaScript implementation of The Update Framework
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- The Update Framework team for creating the TUF specification
 
 
-![Uploading image.png…]()
+4. **Open your browser:**
 
+   Navigate to [http://localhost:3000](http://localhost:3000) to view the application.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open issues or pull requests for improvements, bug fixes, or new features.
+
+
+## 📬 Contact
+
+Join our Slack community: [Slack Channel](https://app.slack.com/client/T08PSQ7BQ/C08FNCGB5N2)
+
+Feel free to file issues if anything is unclear—this is a new project, so documentation is still evolving.
